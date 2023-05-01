@@ -1,0 +1,32 @@
+name: torchsegmentation
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - pytorch
+  - torchaudio
+  - pytorch-cuda=11.7
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - conda-forge::wandb
+  - conda-forge::scikit-learn
+  - conda-forge::scikit-image
+  - conda-forge::nibabel
+  - conda-forge::nilearn
+  - ipykernel
+  - matplotlib
+  - conda-forge::h5py
+  - conda-forge::pandas
+  - black
+  - pytest
+  - pylint
+  - pip
+  - pip:
+    - omegaconf
+    - hydra-core==1.2.0
+    - tqdm 
+    - perflint
+    - pytest-profiling
+    - split-folders
+    - pyyaml
