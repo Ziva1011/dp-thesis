@@ -4,8 +4,7 @@ channels:
   - nvidia
   - conda-forge
 dependencies:
-  - pytorch
-  - torchaudio
+  - python==3.10
   - pytorch-cuda=11.7
   - pytorch::pytorch
   - pytorch::torchvision
@@ -22,6 +21,7 @@ dependencies:
   - pytest
   - pylint
   - pip
+  - awolny::pytorch-3dunet
   - pip:
     - omegaconf
     - hydra-core==1.2.0
@@ -30,3 +30,5 @@ dependencies:
     - pytest-profiling
     - split-folders
     - pyyaml
+    - deepee
+    - objax
