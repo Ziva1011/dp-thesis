@@ -9,6 +9,7 @@ import nibabel as nib
 import numpy as np
 from torch.utils.data import Dataset
 from h5py import File as h5file
+import torch
 
 
 from dptraining.config import Normalization, DataStats, CTWindow
@@ -135,8 +136,8 @@ class NiftiSegmentationDataset(Dataset):
         # t1 = time()
         # print(f"\t Loading took {t1-t0:.1f} seconds")
         return (
-            scan[np.newaxis, ...],
-            label[np.newaxis, ...],
+            torch.from_numpy(scan[np.newaxis, ...].copy()),
+            torch.from_numpy(label[np.newaxis, ...].copy()),
         )  # add channel dimension
 
     def load_nifti_files(self, index, img_file, label_file):

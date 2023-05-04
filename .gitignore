@@ -2,3 +2,5 @@ ObjakDPTraining/
 configs/
 utils.py
 run.out
+**__pycache__**
+**.pyc
