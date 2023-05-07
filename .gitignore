@@ -4,3 +4,5 @@ utils.py
 run.out
 **__pycache__**
 **.pyc
+/outputs
+Miniconda3-latest-Linux-x86_64.sh
