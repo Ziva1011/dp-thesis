@@ -6,3 +6,4 @@ run.out
 **.pyc
 /outputs
 Miniconda3-latest-Linux-x86_64.sh
+/.vscode

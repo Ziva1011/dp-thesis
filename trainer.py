@@ -57,7 +57,7 @@ class Trainer:
                 else:
                     self.lr_scheduler.batch()  # learning rate scheduler step
         return self.training_loss, self.validation_loss, self.learning_rate
-
+#%%
     def _train(self):
 
         if self.notebook:
@@ -72,8 +72,12 @@ class Trainer:
 
         for i, (x, y) in batch_iter:
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
+            input = input.float()
+            target = target.float()
             self.optimizer.zero_grad()  # zerograd the parameters
             out = self.model(input)  # one forward pass
+            print(target.shape, input.shape, out.shape)
+
             loss = self.criterion(out, target)  # calculate loss
             loss_value = loss.item()
             train_losses.append(loss_value)
@@ -101,7 +105,6 @@ class Trainer:
 
         for i, (x, y) in batch_iter:
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
-
             with torch.no_grad():
                 out = self.model(input)
                 loss = self.criterion(out, target)
@@ -113,3 +116,4 @@ class Trainer:
         self.validation_loss.append(np.mean(valid_losses))
 
         batch_iter.close()
+# %%
