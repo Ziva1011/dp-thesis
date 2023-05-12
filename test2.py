@@ -1,9 +1,11 @@
-#%%
+# %%
 import hydra
 from pathlib import Path
 import torch
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
+from segmentation_models_pytorch.losses import DiceLoss
+from tqdm import tqdm, trange
 
 from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
@@ -16,29 +18,35 @@ from trainer import Trainer
 load_config_store()
 print(Path.cwd())
 
-@hydra.main(version_base=None, config_path=Path.cwd()/"configs")
+
+@hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
     print(config)
 
-    train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(config, (None, None, None))
-    train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(train_ds, val_ds, test_ds, {}, {},{})
-    #train_dl_torch = torch.from_numpy(train_dl)
+    train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
+        config, (None, None, None)
+    )
+    train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(
+        train_ds, val_ds, test_ds, {}, {}, {}
+    )
+    # train_dl_torch = torch.from_numpy(train_dl)
 
     x, y = next(iter(train_dl))
     x = torch.squeeze(x)
     x = torch.unsqueeze(x, 0)
     print(x.shape)
-   
-    
-    model= UNet(in_channels=1,
-             out_channels=4,
-             n_blocks=2,
-             start_filters=8,
-             activation='relu',
-             normalization='batch',
-             conv_mode='same',
-             dim=3)
-    
+
+    model = UNet(
+        in_channels=1,
+        out_channels=3,
+        n_blocks=2,
+        start_filters=8,
+        activation="relu",
+        normalization="batch",
+        conv_mode="same",
+        dim=3,
+    )
+
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
     # with torch.no_grad():
@@ -50,37 +58,36 @@ def main(config: Config):
     # opt = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     print(model.parameters)
-    #device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    #inputs, labels = inputs.to(device), labels.to(device)
-    device = torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model = model.to(device)
+    # inputs, labels = inputs.to(device), labels.to(device)
+    # device = torch.device("cpu")
 
     # criterion
     criterion = torch.nn.CrossEntropyLoss()
 
     # optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    #optimirzer = torch.optim.Adam(model.parameters(), lr=0.01)
-    
+    # optimirzer = torch.optim.Adam(model.parameters(), lr=0.01)
+
     trainSteps = len(train_ds)
 
     print("[INFO] training the network...")
-    for e in range(1):
+    for e in trange(1):
         # set the model in training mode
         model.train()
         # initialize the total training and validation loss
         totalTrainLoss = 0
         totalTestLoss = 0
         # loop over the training set
-        for (i, (x, y)) in enumerate(train_dl):
+        for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
             # send the input to the device
             (x, y) = (x.to(device), y.to(device))
             x = x.float()
-            y = y.float()
+            y = y.squeeze(1).long()
             # perform a forward pass and calculate the training loss
             pred = model(x)
-            pred= torch.argmax(pred, dim=1, keepdim=True)
-
-
+            # pred = torch.argmax(pred, dim=1, keepdim=True)
 
             loss = criterion(pred, y)
             # first, zero out any previously accumulated gradients, then
@@ -91,14 +98,12 @@ def main(config: Config):
             # add the loss to the total training loss so far
             totalTrainLoss += loss
         # switch off autograd
-        
+
         avgTrainLoss = totalTrainLoss / trainSteps
         # update our training history
         # print the model training and validation information
         print("[INFO] EPOCH: {}/{}".format(e + 1, 1))
-        print("Train loss: {:.6f}".format(
-            avgTrainLoss))
-
+        print("Train loss: {:.6f}".format(avgTrainLoss))
 
     # trainer
     # trainer = Trainer(
@@ -114,11 +119,11 @@ def main(config: Config):
     #     notebook=False,
     # )
 
-
     # start training
     # training_losses, validation_losses, lr_rates = trainer.run_trainer()
     # print(training_losses, validation_losses)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
 # %%

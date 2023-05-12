@@ -5,14 +5,16 @@ channels:
   - conda-forge
 dependencies:
   - python==3.10
-  - pytorch-cuda=11.7
-  - pytorch::pytorch
+  - pytorch::pytorch-cuda
+  - pytorch::pytorch==2.0
   - pytorch::torchvision
+  - nvidia::cudatoolkit
   - conda-forge::wandb
   - conda-forge::scikit-learn
   - conda-forge::scikit-image
   - conda-forge::nibabel
   - conda-forge::nilearn
+  - conda-forge::opacus
   - ipykernel
   - matplotlib
   - conda-forge::h5py
@@ -32,3 +34,4 @@ dependencies:
     - pyyaml
     - deepee
     - objax
+    - segmentation-models-pytorch
