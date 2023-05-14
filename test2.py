@@ -11,6 +11,8 @@ from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
 from dptraining.datasets.nifti.creator import NiftiSegCreator
 
+import wandb
+import random
 
 from unet import UNet
 from trainer import Trainer
@@ -23,6 +25,7 @@ print(Path.cwd())
 def main(config: Config):
     print(config)
 
+    
     train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
         config, (None, None, None)
     )
@@ -64,7 +67,9 @@ def main(config: Config):
     # device = torch.device("cpu")
 
     # criterion
-    criterion = torch.nn.CrossEntropyLoss()
+    #criterion = torch.nn.CrossEntropyLoss()
+    mode = "multiclass"
+    criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
 
     # optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
@@ -73,55 +78,55 @@ def main(config: Config):
     trainSteps = len(train_ds)
 
     print("[INFO] training the network...")
-    for e in trange(1):
-        # set the model in training mode
-        model.train()
-        # initialize the total training and validation loss
-        totalTrainLoss = 0
-        totalTestLoss = 0
-        # loop over the training set
-        for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
-            # send the input to the device
-            (x, y) = (x.to(device), y.to(device))
-            x = x.float()
-            y = y.squeeze(1).long()
-            # perform a forward pass and calculate the training loss
-            pred = model(x)
-            # pred = torch.argmax(pred, dim=1, keepdim=True)
+    # for e in trange(100):
+    #     # set the model in training mode
+    #     model.train()
+    #     # initialize the total training and validation loss
+    #     totalTrainLoss = 0
+    #     totalTestLoss = 0
+    #     # loop over the training set
+    #     for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
+    #         # send the input to the device
+    #         (x, y) = (x.to(device), y.to(device))
+    #         x = x.float()
+    #         y = y.squeeze(1).long()
+    #         # perform a forward pass and calculate the training loss
+    #         pred = model(x)
+    #         # pred = torch.argmax(pred, dim=1, keepdim=True)
 
-            loss = criterion(pred, y)
-            # first, zero out any previously accumulated gradients, then
-            # perform backpropagation, and then update model parameters
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            # add the loss to the total training loss so far
-            totalTrainLoss += loss
-        # switch off autograd
+    #         loss = criterion(pred, y)
+    #         # first, zero out any previously accumulated gradients, then
+    #         # perform backpropagation, and then update model parameters
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+    #         # add the loss to the total training loss so far
+    #         totalTrainLoss += loss
+    #     # switch off autograd
 
-        avgTrainLoss = totalTrainLoss / trainSteps
-        # update our training history
-        # print the model training and validation information
-        print("[INFO] EPOCH: {}/{}".format(e + 1, 1))
-        print("Train loss: {:.6f}".format(avgTrainLoss))
+    #     avgTrainLoss = totalTrainLoss / trainSteps
+    #     # update our training history
+    #     # print the model training and validation information
+    #     print("[INFO] EPOCH: {}/{}".format(e + 1, 1))
+    #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
-    # trainer
-    # trainer = Trainer(
-    #     model=model,
-    #     device=device,
-    #     criterion=criterion,
-    #     optimizer=optimizer,
-    #     training_DataLoader=train_dl,
-    #     validation_DataLoader=val_dl,
-    #     lr_scheduler=None,
-    #     epochs=1,
-    #     epoch=0,
-    #     notebook=False,
-    # )
+ 
+    trainer = Trainer(
+        model=model,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        training_DataLoader=train_dl,
+        validation_DataLoader=val_dl,
+        lr_scheduler=None,
+        epochs=100,
+        epoch=0,
+        notebook=False,
+    )
 
-    # start training
-    # training_losses, validation_losses, lr_rates = trainer.run_trainer()
-    # print(training_losses, validation_losses)
+    #start training
+    training_losses, validation_losses, lr_rates = trainer.run_trainer()
+    print(training_losses, validation_losses)
 
 
 if __name__ == "__main__":

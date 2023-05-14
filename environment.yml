@@ -35,3 +35,4 @@ dependencies:
     - deepee
     - objax
     - segmentation-models-pytorch
+    - wandb

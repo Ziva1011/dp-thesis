@@ -73,12 +73,13 @@ class Trainer:
         for i, (x, y) in batch_iter:
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
             input = input.float()
-            target = target.float()
-            self.optimizer.zero_grad()  # zerograd the parameters
+            #target = target.float()
+            target = target.squeeze(1).long()
             out = self.model(input)  # one forward pass
-            print(target.shape, input.shape, out.shape)
 
             loss = self.criterion(out, target)  # calculate loss
+            self.optimizer.zero_grad()  # zerograd the parameters
+
             loss_value = loss.item()
             train_losses.append(loss_value)
             loss.backward()  # one backward pass
@@ -106,6 +107,8 @@ class Trainer:
         for i, (x, y) in batch_iter:
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
             with torch.no_grad():
+                input = input.float()
+                target = target.squeeze(1).long()
                 out = self.model(input)
                 loss = self.criterion(out, target)
                 loss_value = loss.item()
