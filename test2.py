@@ -12,7 +12,6 @@ from dptraining.config.config_store import load_config_store
 from dptraining.datasets.nifti.creator import NiftiSegCreator
 
 import wandb
-import random
 
 from unet import UNet
 from trainer import Trainer
@@ -23,21 +22,35 @@ print(Path.cwd())
 
 @hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
-    print(config)
+    #print(config)
 
-    
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="dpSegmentation",
+        
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": 0.01,
+        "architecture": "Unet",
+        "epochs": 100,
+        "loss": "Dice",
+        }
+    )
     train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
         config, (None, None, None)
     )
     train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(
         train_ds, val_ds, test_ds, {}, {}, {}
     )
+
+    # for idx in range (len(train_dl)):
+    #     next(iter(train_dl))
     # train_dl_torch = torch.from_numpy(train_dl)
 
-    x, y = next(iter(train_dl))
-    x = torch.squeeze(x)
-    x = torch.unsqueeze(x, 0)
-    print(x.shape)
+    # x, y = next(iter(train_dl))
+    # x = torch.squeeze(x)
+    # x = torch.unsqueeze(x, 0)
+    # print(x.shape)
 
     model = UNet(
         in_channels=1,
@@ -60,7 +73,7 @@ def main(config: Config):
     # lossFunc = BCEWithLogitsLoss()
     # opt = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    print(model.parameters)
+    #print(model.parameters)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     # inputs, labels = inputs.to(device), labels.to(device)
@@ -77,7 +90,7 @@ def main(config: Config):
 
     trainSteps = len(train_ds)
 
-    print("[INFO] training the network...")
+    # print("[INFO] training the network...")
     # for e in trange(100):
     #     # set the model in training mode
     #     model.train()
@@ -86,7 +99,7 @@ def main(config: Config):
     #     totalTestLoss = 0
     #     # loop over the training set
     #     for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
-    #         # send the input to the device
+    #     # send the input to the device
     #         (x, y) = (x.to(device), y.to(device))
     #         x = x.float()
     #         y = y.squeeze(1).long()
@@ -102,15 +115,16 @@ def main(config: Config):
     #         optimizer.step()
     #         # add the loss to the total training loss so far
     #         totalTrainLoss += loss
-    #     # switch off autograd
+    # #         # switch off autograd
 
     #     avgTrainLoss = totalTrainLoss / trainSteps
     #     # update our training history
     #     # print the model training and validation information
     #     print("[INFO] EPOCH: {}/{}".format(e + 1, 1))
+    #     wandb.log({"train_loss": avgTrainLoss})
     #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
- 
+
     trainer = Trainer(
         model=model,
         device=device,
@@ -126,7 +140,7 @@ def main(config: Config):
 
     #start training
     training_losses, validation_losses, lr_rates = trainer.run_trainer()
-    print(training_losses, validation_losses)
+    #print(training_losses, validation_losses)
 
 
 if __name__ == "__main__":
