@@ -36,3 +36,4 @@ dependencies:
     - objax
     - segmentation-models-pytorch
     - wandb
+    - torchmetrics
