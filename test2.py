@@ -26,18 +26,18 @@ print(Path.cwd())
 def main(config: Config):
     #print(config)
 
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="dpSegmentation",
+    # wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="dpSegmentation",
         
-        # track hyperparameters and run metadata
-        config={
-        "learning_rate": 0.01,
-        "architecture": "Unet",
-        "epochs": 100,
-        "loss": "Dice",
-        }
-    )
+    #     # track hyperparameters and run metadata
+    #     config={
+    #     "learning_rate": 0.01,
+    #     "architecture": "Unet",
+    #     "epochs": 100,
+    #     "loss": "Dice",
+    #     }
+    # )
     train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
         config, (None, None, None)
     )
@@ -79,7 +79,6 @@ def main(config: Config):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     # inputs, labels = inputs.to(device), labels.to(device)
-    # device = torch.device("cpu")
 
     # criterion
     #criterion = torch.nn.CrossEntropyLoss()
@@ -88,41 +87,44 @@ def main(config: Config):
 
     # optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    # optimirzer = torch.optim.Adam(model.parameters(), lr=0.01)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     #f1 = F1Score(task="multiclass", num_classes=3)
 
     trainSteps = len(train_ds)
-    f1=[]
+    epochs= 100
     # print("[INFO] training the network...")
-    for e in trange(100):
+    for e in trange(epochs):
         # set the model in training mode
         model.train()
         # initialize the total training and validation loss
         totalTrainLoss = 0
         totalTestLoss = 0
+        f1=[0,0,0]
         # loop over the training set
         for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
         # send the input to the device
             (x, y) = (x.to(device), y.to(device))
             x = x.float()
             y = y.squeeze(1).long()
+            #y = y.long()
             # perform a forward pass and calculate the training loss
             pred = model(x)
             # pred = torch.argmax(pred, dim=1, keepdim=True)
-
+            z= torch.nn.functional.one_hot(y[0], num_classes=3)
+            z = z.view(1,3,128,128,50)
             loss = criterion(pred, y)
 
-            #tp, fp, fn, tn = smp.metrics.get_stats(y, pred, mode='multilabel', threshold=0.5)
-            #f1_score = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
-            mcf1s = MulticlassF1Score(num_classes=3).to(device)
-            if e ==0:
-                f1.append(mcf1s(pred, y).cpu().numpy())
-            else:
-                f1[i]= (f1[i]+mcf1s(pred, y).cpu().numpy())/2
+            #tp, fp, fn, tn = smp.metrics.get_stats(z, pred.round().long(), mode='multilabel', threshold=0.5, num_classes=3)
+            #f1_score = smp.metrics.f1_score(tp, fp, fn, tn, reduction="macro-imagewise")
+            
+            mcf1s = MulticlassF1Score(num_classes=3, average=None).to(device)
+            f1= (f1+mcf1s(pred, y).cpu().numpy())
+
             #f1.append(mcf1s(pred, y))
             #wandb.log({"f1_score": f1.data.item()})
             #wandb.log({"f1_score": f1_score})
+
             # first, zero out any previously accumulated gradients, then
             # perform backpropagation, and then update model parameters
             optimizer.zero_grad()
@@ -134,12 +136,14 @@ def main(config: Config):
 
         avgTrainLoss = totalTrainLoss / trainSteps
         # update our training history
+        f1 = f1/len(train_dl)
+        print(f1)
         # print the model training and validation information
         print("[INFO] EPOCH: {}/{}".format(e + 1, 1))
-        wandb.log({"f1_score": f1[0]})
-        wandb.log({"train_loss": avgTrainLoss})
+        #wandb.log({"f1": f1[0]})
+        #wandb.log({"train_loss": avgTrainLoss})
+        #print("F1 score: {:.6f}".format(f1[0]))
         print("Train loss: {:.6f}".format(avgTrainLoss))
-
 
     # trainer = Trainer(
     #     model=model,
