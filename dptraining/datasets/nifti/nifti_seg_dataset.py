@@ -127,7 +127,10 @@ class NiftiSegmentationDataset(Dataset):
                     "corrected_img_label_pair", data.shape, data.dtype, data
                 )
                 self.corrected_database_entry = True
+        scan=torch.from_numpy(scan).unsqueeze(0)
+        scan=scan.unsqueeze(1)
         scan = self.transform(scan) if self.transform is not None else scan
+        scan=scan.squeeze().numpy()
         label = (
             self.label_transform(label) if self.label_transform is not None else label
         )

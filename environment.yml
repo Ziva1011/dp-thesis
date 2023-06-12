@@ -23,7 +23,6 @@ dependencies:
   - pytest
   - pylint
   - pip
-  - awolny::pytorch-3dunet
   - pip:
     - omegaconf
     - hydra-core==1.2.0
@@ -37,3 +36,4 @@ dependencies:
     - segmentation-models-pytorch
     - wandb
     - torchmetrics
+    - monai
