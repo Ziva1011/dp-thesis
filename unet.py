@@ -94,6 +94,8 @@ def get_activation(activation: str):
         return nn.LeakyReLU(negative_slope=0.1)
     elif activation == 'elu':
         return nn.ELU()
+    elif activation == "mish":
+        return nn.Mish()
 
 
 def get_normalization(normalization: str,
@@ -386,3 +388,4 @@ class UNet(nn.Module):
         attributes = {attr_key: self.__dict__[attr_key] for attr_key in self.__dict__.keys() if '_' not in attr_key[0] and 'training' not in attr_key}
         d = {self.__class__.__name__: attributes}
         return f'{d}'
+# %%
