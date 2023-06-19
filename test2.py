@@ -1,6 +1,10 @@
 # %%
 import hydra
 from pathlib import Path
+import glob
+import os
+import tempfile
+
 import torch
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
@@ -15,10 +19,23 @@ from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
 from dptraining.datasets.nifti.creator import NiftiSegCreator
 
+from torchinfo import summary
 
+from monai.data import Dataset, DataLoader, list_data_collate, pad_list_data_collate, ArrayDataset
 from monai.transforms import (
     RandFlip,
+    Compose,
+    LoadImage,
+    RandRotate90,
+    RandAdjustContrast,
+    ScaleIntensity,
+    Lambda,
+    ToTensor,
+    EnsureChannelFirst,
+    RandSpatialCrop,
+    Resize,
 )
+from monai.utils import first
 
 import wandb
 
@@ -47,34 +64,62 @@ def main(config: Config):
     # )
 
     #Transforms
-    rand_flip = RandFlip(prob=0.5,spatial_axis=2)
-    
-    train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
-        config, (rand_flip, None, None)
-    )
-    train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(
-        train_ds, val_ds, test_ds, {}, {}, {}
-    )
+    transforms = Compose([
+        LoadImage(image_only=True),
+        EnsureChannelFirst(),
+        Resize(spatial_size=(128,128,50)),
+        #RandSpatialCrop((128, 128, 50), random_size=False),
+        RandFlip(prob=0.5,spatial_axis=2),
+        #RandAdjustContrast(prob=0.5, gamma=[0.5,0.9]),
+        #ToTensor,
+        #Lambda(lambda x: x.squeeze()),
+        #RandRotate90(prob=1,spatial_axes=[2,3])
+    ])
+    # rand_rotate = RandRotate90(prob=1,spatial_axes=[2,3])
 
-    # for idx in range (len(train_dl)):
-    #     next(iter(train_dl))
-    # train_dl_torch = torch.from_numpy(train_dl)
+    # train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
+    #     config, (None, None, None)
+    # )
+    # train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(
+    #     train_ds, val_ds, test_ds, {}, {}, {}
+    # )
 
-    # x, y = next(iter(train_dl))
-    # x = torch.squeeze(x)
-    # x = torch.unsqueeze(x, 0)
-    # print(x.shape)
+
+
+
+
+    images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
+    segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
+
+    train_ds = ArrayDataset(images, transforms, segs, transforms)
+    train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, collate_fn=pad_list_data_collate, pin_memory=torch.cuda.is_available())
+
+    #train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:20], segs[:20])]
+    #val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-20:], segs[-20:])]
+
+    # train_ds = Dataset(data=train_files, transform=transforms)
+    # train_dl = DataLoader(
+    #     train_ds,
+    #     batch_size=1,
+    #     shuffle=True,
+    #     num_workers=4,
+    #     collate_fn=list_data_collate,
+    #     pin_memory=torch.cuda.is_available(),
+    # )
 
     model = UNet(
         in_channels=1,
         out_channels=3,
         n_blocks=2,
-        start_filters=32,
-        activation="relu",
+        start_filters=8,
+        activation="mish",
         normalization="batch",
         conv_mode="same",
         dim=3,
     )
+
+    # batch_size = 16
+    # summary(model, input_size=(batch_size, 1, 128, 128, 50))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -105,7 +150,12 @@ def main(config: Config):
     trainSteps = len(train_ds)
     epochs= 100
 
-    # print("[INFO] training the network...")
+    ##First Training loop
+    print("[INFO] training the network...")
+
+    #img, seg_gt = first(train_dl)
+    #print(img.shape)
+    # print(im.shape, seg.shape)
     for e in trange(epochs):
         # set the model in training mode
         model.train()
@@ -114,8 +164,10 @@ def main(config: Config):
         totalTestLoss = 0
         f1=[0,0,0]
         # loop over the training set
-        for i, (x, y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
+        for i, (x,y) in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
         # send the input to the device
+            #x, y = first(train_dl)
+            #y= dict["seg"]
             (x, y) = (x.to(device), y.to(device))
             x = x.float()
             y = y.squeeze(1).long()
@@ -151,7 +203,7 @@ def main(config: Config):
         f1 = f1/len(train_dl)
         print(f1)
         # print the model training and validation information
-        print("[INFO] EPOCH: {}/{}".format(e + 1, 100))
+        print("[INFO] EPOCH: {}/{}".format(e + 1, epochs))
 
         # wandb.log({"f1_background": f1[0]})
         # wandb.log({"f1_liver": f1[1]})
@@ -160,6 +212,8 @@ def main(config: Config):
 
         print("Train loss: {:.6f}".format(avgTrainLoss))
 
+
+    ##Second training loop
     # trainer = Trainer(
     #     model=model,
     #     device=device,
@@ -177,19 +231,22 @@ def main(config: Config):
     # training_losses, validation_losses, lr_rates = trainer.run_trainer()
     # print(training_losses, validation_losses)
 
-    img, seg_gt = next(iter(train_dl))
-    # model.cuda()
-    # img=img.cuda().float()
-    # model.eval()
-    # seg_pred = model(img)
+    ## Images Print
+    img, seg_gt = first(train_dl)
+    img= img.squeeze
+    #img = rand_rotate(img)
+    # img, seg_gt = first(train_dl)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              model.cuda()
+    img=img.cuda().float()
+    model.eval()
+    seg_pred = model(img)
 
-    # #seg_pred=seg_pred.cpu().numpy()
-    # # slice_num = 0
-    # img=img.cpu().detach().numpy()
-    # seg_pred = seg_pred.cpu().detach().numpy()
-    fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(3, 5))
-    axs[0].imshow(img[0,0,:,:,30], cmap="gray")
-    axs[1].imshow(seg_gt[0,0,:,:,30], cmap="gray")
+    slice_num = 30
+    img=img.cpu().detach().numpy()
+    seg_pred = seg_pred.cpu().detach().numpy()
+    fig, axs = plt.subplots(nrows=3, sharex=True, figsize=(3, 5))
+    axs[0].imshow(img[0,0,:,:,slice_num], cmap="gray")
+    axs[1].imshow(seg_gt[0,0,:,:,slice_num], cmap="gray")
+    axs[2].imshow(seg_pred[0,2,:,:,slice_num],cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
     plt.savefig("output.png")
 
