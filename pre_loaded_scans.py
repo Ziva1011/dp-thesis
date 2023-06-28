@@ -59,7 +59,7 @@ transforms = Compose([
     EnsureChannelFirst(),
     Resize(spatial_size=(128,128,50)),
     #RandSpatialCrop((128, 128, 50), random_size=False),
-    RandFlip(prob=0.5,spatial_axis=1),
+    #RandFlip(prob=0.5,spatial_axis=1),
     #RandAdjustContrast(prob=0.5, gamma=[0.5,0.9]),
     #ToTensor,
     #Lambda(lambda x: x.squeeze()),
@@ -130,9 +130,9 @@ writer = mdt.image_writer.NibabelWriter()
 
 # %%
 def save_all_cts_in_dataloader(save_path, dataloader, writer, name):
-    #test_imgs = int(round(len(dataloader) * test_split))
-    #val_imgs = int(round(len(dataloader) * val_split))
-    train_imgs = len(dataloader) 
+    test_imgs = int(round(len(dataloader) * test_split))
+    val_imgs = int(round(len(dataloader) * val_split))
+    train_imgs = len(dataloader) - val_imgs - test_imgs 
     assert train_imgs > 0
     for i, array in tqdm(
         enumerate(dataloader),
@@ -141,14 +141,22 @@ def save_all_cts_in_dataloader(save_path, dataloader, writer, name):
         total=len(dataloader),
     ):
         writer.set_data_array(array[0].squeeze(0), channel_dim=0)
-
-        save_folder = save_path
+        split: int
+        if i < train_imgs:
+            split = 0
+        elif train_imgs <= i < val_imgs + train_imgs:
+            split = 1
+        else:
+            split = 2
+        save_folder = save_path / splits[split]
+        
+        #save_folder = save_path
         if not save_folder.is_dir():
             save_folder.mkdir(parents=True)
         writer.write(save_folder / f"{i}.nii")
 
         writer.set_data_array(array[1].squeeze(0), channel_dim=0)
-        save_folder = save_path_labels
+        save_folder = save_path_labels / splits[split]
         if not save_folder.is_dir():
             save_folder.mkdir(parents=True)
         writer.write(save_folder / f"{i}.nii")
