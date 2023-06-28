@@ -2,8 +2,6 @@
 import hydra
 from pathlib import Path
 import glob
-import os
-import tempfile
 
 import torch
 from torch.nn import BCEWithLogitsLoss
@@ -67,9 +65,9 @@ def main(config: Config):
     transforms = Compose([
         LoadImage(image_only=True),
         EnsureChannelFirst(),
-        Resize(spatial_size=(128,128,50)),
+        #Resize(spatial_size=(128,128,50)),
         #RandSpatialCrop((128, 128, 50), random_size=False),
-        RandFlip(prob=0.5,spatial_axis=2),
+        #RandFlip(prob=0.5,spatial_axis=1),
         #RandAdjustContrast(prob=0.5, gamma=[0.5,0.9]),
         #ToTensor,
         #Lambda(lambda x: x.squeeze()),
@@ -91,9 +89,13 @@ def main(config: Config):
     images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
     segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
 
-    train_ds = ArrayDataset(images, transforms, segs, transforms)
-    train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, collate_fn=pad_list_data_collate, pin_memory=torch.cuda.is_available())
+    train_files = glob.glob("./data/liver_seg/train/*.nii")
+    train_labels = glob.glob("./data/liver_seg_labels/train/*.nii")
 
+    train_ds = ArrayDataset(train_files, transforms, train_labels, transforms)
+    train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, pin_memory='True')
+
+   
     #train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:20], segs[:20])]
     #val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-20:], segs[-20:])]
 
@@ -220,7 +222,7 @@ def main(config: Config):
     #     criterion=criterion,
     #     optimizer=optimizer,
     #     training_DataLoader=train_dl,
-    #     validation_DataLoader=val_dl,
+    #     validation_DataLoader=None,
     #     lr_scheduler=None,
     #     epochs=100,
     #     epoch=0,
@@ -233,19 +235,23 @@ def main(config: Config):
 
     ## Images Print
     img, seg_gt = first(train_dl)
-    img= img.squeeze
+    #img= img.squeeze
     #img = rand_rotate(img)
     # img, seg_gt = first(train_dl)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              model.cuda()
-    img=img.cuda().float()
+    #img=img.cuda().float()
+    (img, seg_gt) = (img.to(device), seg_gt.to(device))
+    img = img.float()
+    seg_gt = seg_gt.squeeze(1).long()
     model.eval()
     seg_pred = model(img)
 
-    slice_num = 30
+    slice_num = 35
     img=img.cpu().detach().numpy()
     seg_pred = seg_pred.cpu().detach().numpy()
+    seg_gt = seg_gt.cpu().detach().numpy()
     fig, axs = plt.subplots(nrows=3, sharex=True, figsize=(3, 5))
     axs[0].imshow(img[0,0,:,:,slice_num], cmap="gray")
-    axs[1].imshow(seg_gt[0,0,:,:,slice_num], cmap="gray")
+    axs[1].imshow(seg_gt[0,:,:,slice_num], cmap="gray")
     axs[2].imshow(seg_pred[0,2,:,:,slice_num],cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
     plt.savefig("output.png")
