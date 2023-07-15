@@ -74,10 +74,13 @@ class Trainer:
                           leave=False)
         f1=[0,0,0]
 
-        for i, (x, y) in batch_iter:
+        for i, dict in batch_iter:
+            x= dict["img"]  
+            y= dict["seg"]
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
             input = input.float()
             #target = target.float()
+            #target= target.long()
             target = target.squeeze(1).long()
             out = self.model(input)  # one forward pass
 
