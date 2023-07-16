@@ -78,10 +78,7 @@ class Trainer:
             x= dict["img"]  
             y= dict["seg"]
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
-            input = input.float()
-            #target = target.float()
-            #target= target.long()
-            target = target.squeeze(1).long()
+            
             out = self.model(input)  # one forward pass
 
             loss = self.criterion(out, target)  # calculate loss
@@ -92,18 +89,20 @@ class Trainer:
             loss.backward()  # one backward pass
             self.optimizer.step()  # update the parameters
             
+            target = target.squeeze(1).long() #because multiclass receives size (N, ...)
             mcf1s = MulticlassF1Score(num_classes=3, average=None).to(self.device)
             f1= (f1+mcf1s(out, target).cpu().numpy())
 
             batch_iter.set_description(f'Training: (loss {loss_value:.4f})')  # update progressbar
 
         self.training_loss.append(np.mean(train_losses))
+        wandb.log({"train_loss": np.mean(train_losses)})
         self.learning_rate.append(self.optimizer.param_groups[0]['lr'])
         f1 = f1/len(batch_iter)
         print(f1)
-        # wandb.log({"f1_background": f1[0]})
-        # wandb.log({"f1_liver": f1[1]})
-        # wandb.log({"f1_tumor": f1[2]})
+        wandb.log({"f1_background": f1[0]})
+        wandb.log({"f1_liver": f1[1]})
+        wandb.log({"f1_tumor": f1[2]})
 
         batch_iter.close()
 
@@ -121,15 +120,18 @@ class Trainer:
         
         f1=[0,0,0]
 
-        for i, (x, y) in batch_iter:
+        for i,  dict in batch_iter:
+            x= dict["img"]  
+            y= dict["seg"]
             input, target = x.to(self.device), y.to(self.device)  # send to device (GPU or CPU)
             with torch.no_grad():
                 input = input.float()
-                target = target.squeeze(1).long()
                 out = self.model(input)
                 loss = self.criterion(out, target)
                 loss_value = loss.item()
                 valid_losses.append(loss_value)
+
+                target = target.squeeze(0).long()
 
                 mcf1s = MulticlassF1Score(num_classes=3, average=None).to(self.device)
                 f1= (f1+mcf1s(out, target).cpu().numpy())
@@ -139,6 +141,6 @@ class Trainer:
         self.validation_loss.append(np.mean(valid_losses))
         f1 = f1/len(batch_iter)
         print('Validation_f1:',f1)
-        #wandb.log({"val_loss": np.mean(valid_losses)})
+        wandb.log({"val_loss": np.mean(valid_losses)})
         batch_iter.close()
 
