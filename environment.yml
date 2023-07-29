@@ -39,3 +39,4 @@ dependencies:
     - monai
     - jaxlib==0.4.7
     - torchinfo
+    - opacus
