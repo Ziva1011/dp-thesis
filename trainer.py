@@ -73,7 +73,7 @@ class Trainer:
         else:
             from tqdm import tqdm, trange
 
-        # self.model.train()  # train mode
+        self.model.train()  # train mode
         train_losses = []  # accumulate the losses here
         batch_iter = tqdm(
             enumerate(self.training_DataLoader),
@@ -147,7 +147,7 @@ class Trainer:
             input, target = x.to(self.device), y.to(
                 self.device
             )  # send to device (GPU or CPU)
-            with torch.no_grad():
+            with torch.inference_mode():
                 input = input.float()
                 out = self.model(input)
                 loss = self.criterion(out, target)
