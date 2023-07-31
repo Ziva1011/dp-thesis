@@ -130,7 +130,7 @@ def main(config: Config):
         n_blocks=4,
         start_filters=32,
         activation="mish",
-        normalization="batch",
+        normalization="instance",
         conv_mode="same",
         dim=3,
     )
@@ -168,16 +168,16 @@ def main(config: Config):
     trainSteps = len(train_ds)
     epochs= 100
 
-    # privacy_engine = PrivacyEngine()
-    # model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
-    #     module=model,
-    #     optimizer=optimizer,
-    #     data_loader=train_dl,
-    #     target_epsilon=8,
-    #     target_delta= 0.012,
-    #     epochs=epochs,
-    #     max_grad_norm=0.1,
-    # )
+    privacy_engine = PrivacyEngine()
+    model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
+        module=model,
+        optimizer=optimizer,
+        data_loader=train_dl,
+        target_epsilon=8,
+        target_delta= 1e-3,
+        epochs=epochs,
+        max_grad_norm=0.1,
+    )
 
     ##First Training loop
     print("[INFO] training the network...")
