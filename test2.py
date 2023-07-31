@@ -3,25 +3,33 @@ import hydra
 from pathlib import Path
 import glob
 
-#imports from  pytorch
+# imports from  pytorch
 import torch
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
 import segmentation_models_pytorch as smp
-#ßfrom segmentation_models_pytorch.losses import DiceLoss
+
+# ßfrom segmentation_models_pytorch.losses import DiceLoss
 from torchmetrics.classification import MulticlassF1Score
 from torchinfo import summary
 
-#imports from dptraining
+# imports from dptraining
 from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
 from dptraining.datasets.nifti.creator import NiftiSegCreator
 
 
-#imports from monai
-from monai.data import Dataset, DataLoader, list_data_collate, pad_list_data_collate, ArrayDataset
+# imports from monai
+from monai.data import (
+    Dataset,
+    DataLoader,
+    list_data_collate,
+    pad_list_data_collate,
+    ArrayDataset,
+)
 from monai.losses import DiceLoss
-#from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
+
+# from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
 from monai.transforms import (
     RandFlipd,
     Compose,
@@ -40,7 +48,9 @@ from monai.utils import first
 import wandb
 from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
-from opacus import PrivacyEngine 
+from opacus import PrivacyEngine
+from opacus.utils.uniform_sampler import UniformWithReplacementSampler
+from opacus.data_loader import wrap_collate_with_empty
 
 
 from unet import UNet
@@ -50,14 +60,29 @@ load_config_store()
 print(Path.cwd())
 
 
+def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
+    def collate(batch):
+        if len(batch) > 0:
+            return collate_fn(batch)
+        else:
+            return {
+                key: torch.zeros(sample_empty_shapes[key], dtype=dtypes[key]).unsqueeze(
+                    0
+                )
+                for key in sample_empty_shapes.keys()
+            }
+
+    return collate
+
+
 @hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
-    #print(config)
+    # print(config)
 
     # wandb.init(
     #     # set the wandb project where this run will be logged
     #     project="dpSegmentation",
-        
+
     #     # track hyperparameters and run metadata
     #     config={
     #     "learning_rate": 0.01,
@@ -67,18 +92,20 @@ def main(config: Config):
     #     }
     # )
 
-    #Transforms
-    transforms = Compose([
-        # LoadImage(image_only=True),
-        # EnsureChannelFirst(),
-        LoadImaged(keys=["img", "seg"]),
-        EnsureChannelFirstd(keys=["img", "seg"]),
-        # #Resize(spatial_size=(128,128,50)),
-        # #RandSpatialCrop((128, 128, 50), random_size=False),
-        RandFlipd(keys=["img", "seg"], prob=0.5,spatial_axis=1),
-        #RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
-        RandRotate90d(keys=["img", "seg"], prob=0.3,spatial_axes=(0, 1)),
-    ])
+    # Transforms
+    transforms = Compose(
+        [
+            # LoadImage(image_only=True),
+            # EnsureChannelFirst(),
+            LoadImaged(keys=["img", "seg"]),
+            EnsureChannelFirstd(keys=["img", "seg"]),
+            # #Resize(spatial_size=(128,128,50)),
+            # #RandSpatialCrop((128, 128, 50), random_size=False),
+            RandFlipd(keys=["img", "seg"], prob=0.5, spatial_axis=1),
+            # RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
+            RandRotate90d(keys=["img", "seg"], prob=0.3, spatial_axes=(0, 1)),
+        ]
+    )
     # rand_rotate = RandRotate90(prob=1,spatial_axes=[2,3])
 
     # train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
@@ -88,10 +115,6 @@ def main(config: Config):
     #     train_ds, val_ds, test_ds, {}, {}, {}
     # )
 
-
-
-
-
     # images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
     # segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
 
@@ -100,15 +123,15 @@ def main(config: Config):
     val_files = glob.glob("./data/liver_seg/val/*.nii")
     val_labels = glob.glob("./data/liver_seg_labels/val/*.nii")
 
-
     # train_ds = ArrayDataset(train_files, transforms, train_labels, transforms)
     # train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, pin_memory='True')
 
     # val_ds = ArrayDataset(val_files, transforms, val_labels, transforms)
     # val_dl = DataLoader(val_ds, batch_size=1, num_workers=2, pin_memory='True')
 
-   
-    train_files = [{"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)]
+    train_files = [
+        {"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)
+    ]
     val_files = [{"img": img, "seg": seg} for img, seg in zip(val_files, val_labels)]
 
     train_ds = Dataset(data=train_files, transform=transforms)
@@ -122,7 +145,9 @@ def main(config: Config):
     )
 
     val_ds = Dataset(data=val_files, transform=transforms)
-    val_dl = DataLoader(val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate)
+    val_dl = DataLoader(
+        val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
+    )
 
     model = UNet(
         in_channels=1,
@@ -135,8 +160,8 @@ def main(config: Config):
         dim=3,
     )
 
-    #batch_size = 16
-    #summary(model, input_size=(batch_size, 1, 128, 128, 50))
+    # batch_size = 16
+    # summary(model, input_size=(batch_size, 1, 128, 128, 50))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -148,35 +173,41 @@ def main(config: Config):
     # lossFunc = BCEWithLogitsLoss()
     # opt = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    #print(model.parameters)
+    # print(model.parameters)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     model.train()
 
     # criterion
-    #criterion = torch.nn.CrossEntropyLoss()
-    #ßßmode = "multiclass"
-    #criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    criterion = DiceLoss(to_onehot_y=True, reduction='mean', sigmoid=True)
-   
+    # criterion = torch.nn.CrossEntropyLoss()
+    # ßßmode = "multiclass"
+    # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
+    criterion = DiceLoss(to_onehot_y=True, reduction="mean", sigmoid=True)
+
     # optimizer
-    #optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     optimizer = torch.optim.NAdam(model.parameters(), lr=0.002)
 
-    #f1 = F1Score(task="multiclass", num_classes=3)
+    # f1 = F1Score(task="multiclass", num_classes=3)
 
     trainSteps = len(train_ds)
-    epochs= 100
+    epochs = 100
 
-    privacy_engine = PrivacyEngine()
+    privacy_engine = PrivacyEngine(accountant="gdp")
     model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
         module=model,
         optimizer=optimizer,
         data_loader=train_dl,
         target_epsilon=8,
-        target_delta= 1e-3,
+        target_delta=1e-3,
         epochs=epochs,
         max_grad_norm=0.1,
+        grad_sample_mode="functorch",
+    )
+    train_dl.collate_fn = wrap_collate_with_empty(
+        collate_fn=list_data_collate,
+        sample_empty_shapes={x: train_dl.dataset[0][x].shape for x in ["img", "seg"]},
+        dtypes={x: train_dl.dataset[0][x].dtype for x in ["img", "seg"]},
     )
 
     ##First Training loop
@@ -191,14 +222,13 @@ def main(config: Config):
     #     totalTestLoss = 0
     #     f1=[0,0,0]
 
-
-        # loop over the training set
+    # loop over the training set
     #     for i, dict in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
     #     # send the input to the device
     #         #x, y = first(train_dl)
     #         x= dict["img"]
     #         y= dict["seg"]
-            
+
     #         (x, y) = (x.to(device), y.to(device))
     #         x = x.float()
     #         #y = y.squeeze(0).long()
@@ -222,7 +252,7 @@ def main(config: Config):
     #         tp, fp, fn, tn = smp.metrics.get_stats(pred.long(), z, mode='multiclass', num_classes=3)
     #         f1 = 2*tp/(2*tp+fp+fn)
     #         # f1 = f1+smp.metrics.f1_score(tp, fp, fn, tn, reduction="none").cpu().numpy()
-            
+
     #         #F1 score for multiclass
     #         # mcf1s = MulticlassF1Score(num_classes=3, average=None).to(device)
     #         # f1= (f1+mcf1s(pred, z).cpu().numpy())
@@ -257,8 +287,7 @@ def main(config: Config):
 
     #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
-
-    #Second training loop
+    # Second training loop
     trainer = Trainer(
         model=model,
         device=device,
@@ -272,7 +301,7 @@ def main(config: Config):
         notebook=False,
     )
 
-    #start training
+    # start training
     training_losses, validation_losses, lr_rates = trainer.run_trainer()
     print(training_losses, validation_losses)
 
@@ -281,12 +310,12 @@ def main(config: Config):
     dict = next(iter(val_dl))
     dict = next(iter(val_dl))
 
-    img= dict["img"]
-    seg_gt= dict["seg"]
-    #img= img.squeeze
-    #img = rand_rotate(img)
+    img = dict["img"]
+    seg_gt = dict["seg"]
+    # img= img.squeeze
+    # img = rand_rotate(img)
     # img, seg_gt = first(train_dl)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              model.cuda()
-    #img=img.cuda().float()
+    # img=img.cuda().float()
     (img, seg_gt) = (img.to(device), seg_gt.to(device))
     img = img.float()
     seg_gt = seg_gt.long()
@@ -296,19 +325,18 @@ def main(config: Config):
 
     slice_num = 50
 
-    img=img.cpu().detach().numpy()
-    seg_pred=torch.argmax(seg_pred, dim=(1), keepdims=True)
+    img = img.cpu().detach().numpy()
+    seg_pred = torch.argmax(seg_pred, dim=(1), keepdims=True)
 
     seg_pred = seg_pred.cpu().detach().numpy()
     seg_gt = seg_gt.cpu().detach().numpy()
 
     fig, axs = plt.subplots(nrows=3, sharex=True, figsize=(3, 5))
-    axs[0].imshow(img[0,0,:,:,slice_num], cmap="gray")
-    axs[1].imshow(seg_gt[0,0,:,:,slice_num], cmap="gray")
-    axs[2].imshow(seg_pred[0,0,:,:,slice_num],cmap="gray")
+    axs[0].imshow(img[0, 0, :, :, slice_num], cmap="gray")
+    axs[1].imshow(seg_gt[0, 0, :, :, slice_num], cmap="gray")
+    axs[2].imshow(seg_pred[0, 0, :, :, slice_num], cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
     plt.savefig("output.png")
-
 
 
 if __name__ == "__main__":
