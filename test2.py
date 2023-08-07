@@ -44,6 +44,15 @@ from monai.transforms import (
     EnsureChannelFirst,
 )
 from monai.utils import first
+from monai.networks.nets import(
+    DynUNet,
+    SegResNetVAE,
+    AttentionUnet,
+    VNet,
+    DiNTS,
+    TopologyInstance
+)
+
 
 import wandb
 from tqdm import tqdm, trange
@@ -79,18 +88,18 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 def main(config: Config):
     # print(config)
 
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="dpSegmentation",
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="dpSegmentation",
 
-    #     # track hyperparameters and run metadata
-    #     config={
-    #     "learning_rate": 0.01,
-    #     "architecture": "Unet",
-    #     "epochs": 100,
-    #     "loss": "Dice",
-    #     }
-    # )
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": 0.01,
+        "architecture": "Unet",
+        "epochs": 100,
+        "loss": "Dice",
+        }
+    )
 
     # Transforms
     transforms = Compose(
@@ -149,19 +158,57 @@ def main(config: Config):
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
 
-    model = UNet(
-        in_channels=1,
-        out_channels=3,
-        n_blocks=4,
-        start_filters=32,
-        activation="mish",
-        normalization="instance",
-        conv_mode="same",
-        dim=3,
-    )
+    # import martim como thebest
 
-    # batch_size = 16
-    # summary(model, input_size=(batch_size, 1, 128, 128, 50))
+    # martim: braço cabeca PendingDeprecationWarning
+
+    # eini=[braco, pe, cabeça]
+
+    # model = thebest.eini[i], i in dict
+    private = True
+    architecture = 'dynUnet'
+
+    #model= SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)
+    #model = DiNTS(dints_space=TopologyInstance(), in_channels=1, num_classes=3)
+    
+    if (architecture =='dynUnet'):
+        model= DynUNet(
+            spatial_dims=3, 
+            in_channels=1, 
+            out_channels=3, 
+            kernel_size=[3, 3, 3, 3, 3, 3],
+            strides=[1, 2, 2, 2, 2, [2, 2, 1]],
+            upsample_kernel_size=[2, 2, 2, 2, [2, 2, 1]],
+            norm_name="instance",
+            deep_supervision=False,
+            res_block=True)
+    
+    elif (architecture=='unet'):
+        model = UNet(
+            in_channels=1,
+            out_channels=3,
+            n_blocks=4,
+            start_filters=32,
+            activation="mish",
+            normalization="instance",
+            conv_mode="same",
+            dim=3,
+        )
+
+    elif (architecture=='attention'):
+        model = AttentionUnet(
+            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], 
+        )
+
+    elif (architecture=='vnet'):
+        model= VNet(
+            spatial_dims=3, 
+            in_channels=1, 
+            out_channels=3)
+    
+
+    batch_size = 1
+    summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -191,24 +238,25 @@ def main(config: Config):
     # f1 = F1Score(task="multiclass", num_classes=3)
 
     trainSteps = len(train_ds)
-    epochs = 100
+    epochs = 50
 
-    privacy_engine = PrivacyEngine(accountant="gdp")
-    model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
-        module=model,
-        optimizer=optimizer,
-        data_loader=train_dl,
-        target_epsilon=8,
-        target_delta=1e-3,
-        epochs=epochs,
-        max_grad_norm=0.1,
-        grad_sample_mode="functorch",
-    )
-    train_dl.collate_fn = wrap_collate_with_empty(
-        collate_fn=list_data_collate,
-        sample_empty_shapes={x: train_dl.dataset[0][x].shape for x in ["img", "seg"]},
-        dtypes={x: train_dl.dataset[0][x].dtype for x in ["img", "seg"]},
-    )
+    if (private):
+        privacy_engine = PrivacyEngine(accountant="gdp")
+        model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
+            module=model,
+            optimizer=optimizer,
+            data_loader=train_dl,
+            target_epsilon=8,
+            target_delta=1e-3,
+            epochs=epochs,
+            max_grad_norm=1,
+            grad_sample_mode="functorch",
+        )
+        train_dl.collate_fn = wrap_collate_with_empty(
+            collate_fn=list_data_collate,
+            sample_empty_shapes={x: train_dl.dataset[0][x].shape for x in ["img", "seg"]},
+            dtypes={x: train_dl.dataset[0][x].dtype for x in ["img", "seg"]},
+        )
 
     ##First Training loop
     print("[INFO] training the network...")
@@ -306,11 +354,12 @@ def main(config: Config):
     print(training_losses, validation_losses)
 
     ## Images Print
-    dict = first(val_dl)
-    dict = next(iter(val_dl))
-    dict = next(iter(val_dl))
 
-    img = dict["img"]
+    x= iter(val_dl)
+    dict = first(x)
+    
+
+    img =   dict["img"]
     seg_gt = dict["seg"]
     # img= img.squeeze
     # img = rand_rotate(img)
@@ -337,7 +386,8 @@ def main(config: Config):
     axs[2].imshow(seg_pred[0, 0, :, :, slice_num], cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
     plt.savefig("output.png")
-
+    
+    
 
 if __name__ == "__main__":
     main()
