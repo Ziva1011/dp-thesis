@@ -40,3 +40,4 @@ dependencies:
     - jaxlib==0.4.7
     - torchinfo
     - opacus
+    - git+https://github.com/a1302z/ACSConv

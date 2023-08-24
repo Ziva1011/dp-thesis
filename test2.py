@@ -50,19 +50,22 @@ from monai.networks.nets import(
     AttentionUnet,
     VNet,
     DiNTS,
-    TopologyInstance
+    TopologyInstance,
+    UNet
 )
 
+#opacus imports
+from opacus import PrivacyEngine
+from opacus.utils.uniform_sampler import UniformWithReplacementSampler
+from opacus.data_loader import wrap_collate_with_empty
+from opacus import validators
 
 import wandb
 from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
-from opacus import PrivacyEngine
-from opacus.utils.uniform_sampler import UniformWithReplacementSampler
-from opacus.data_loader import wrap_collate_with_empty
+from acsconv.converters import ACSConverter
 
-
-from unet import UNet
+from unet import Unet
 from trainer import Trainer
 
 load_config_store()
@@ -88,18 +91,18 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 def main(config: Config):
     # print(config)
 
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="dpSegmentation",
+    # wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="dpSegmentation",
 
-        # track hyperparameters and run metadata
-        config={
-        "learning_rate": 0.01,
-        "architecture": "Unet",
-        "epochs": 100,
-        "loss": "Dice",
-        }
-    )
+    #     # track hyperparameters and run metadata
+    #     config={
+    #     "learning_rate": 0.01,
+    #     "architecture": "Unet",
+    #     "epochs": 100,
+    #     "loss": "Dice",
+    #     }
+    # )
 
     # Transforms
     transforms = Compose(
@@ -146,7 +149,7 @@ def main(config: Config):
     train_ds = Dataset(data=train_files, transform=transforms)
     train_dl = DataLoader(
         train_ds,
-        batch_size=1,
+        batch_size=4,
         shuffle=True,
         num_workers=2,
         collate_fn=list_data_collate,
@@ -166,11 +169,9 @@ def main(config: Config):
 
     # model = thebest.eini[i], i in dict
     private = True
-    architecture = 'dynUnet'
+    architecture = 'vnet'
 
-    #model= SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)
-    #model = DiNTS(dints_space=TopologyInstance(), in_channels=1, num_classes=3)
-    
+
     if (architecture =='dynUnet'):
         model= DynUNet(
             spatial_dims=3, 
@@ -184,7 +185,7 @@ def main(config: Config):
             res_block=True)
     
     elif (architecture=='unet'):
-        model = UNet(
+        model = Unet(
             in_channels=1,
             out_channels=3,
             n_blocks=4,
@@ -199,16 +200,64 @@ def main(config: Config):
         model = AttentionUnet(
             spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], 
         )
+        model = validators.ModuleValidator.fix(model)
 
     elif (architecture=='vnet'):
         model= VNet(
             spatial_dims=3, 
             in_channels=1, 
             out_channels=3)
+        model = validators.ModuleValidator.fix(model)
+    
+    elif (architecture=='unetMonai'):
+        model= UNet(
+            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2] 
+        )
     
 
-    batch_size = 1
-    summary(model, input_size=(batch_size, 1, 128, 128, 64))
+    elif (architecture=="dints"):
+        model = DiNTS(dints_space=TopologyInstance(), in_channels=1, num_classes=3)
+
+    elif (architecture=="resnet"):
+        class NewModel(torch.nn.Module):
+            def __init__(self, model):
+                super().__init__()
+                self.model = model
+            def forward(self, x):
+                return self.model(x)[0]
+        model = NewModel(SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)) 
+    
+    elif (architecture=="unet++"):
+        model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="linkNet"):
+        model_2d = smp.Linknet(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="fpn"):
+        model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="psp"):
+        model_2d = smp.PSPNet(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="pan"):
+        model_2d = smp.PAN(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="deep"):
+        model_2d = smp.DeepLabV3(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    elif (architecture=="deepPlus"):
+        model_2d = smp.DeepLabV3Plus(in_channels=1, classes=3)
+        model = ACSConverter(model_2d)
+
+    
+    # batch_size = 1
+    # summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
