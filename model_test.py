@@ -36,7 +36,7 @@ model = ACSConverter(model_2d)
 
 
 #%%
-dict= first(train_dl)
+dict= first(iter(train_dl))
 model.train()
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
