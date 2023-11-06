@@ -168,8 +168,8 @@ def main(config: Config):
     # eini=[braco, pe, cabeça]
 
     # model = thebest.eini[i], i in dict
-    private = True
-    architecture = 'vnet'
+    private = False
+    architecture = 'unet'
 
 
     if (architecture =='dynUnet'):

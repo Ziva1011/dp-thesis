@@ -57,59 +57,25 @@ segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.g
 transforms = Compose([
     LoadImage(image_only=True),
     EnsureChannelFirst(),
-    Resize(spatial_size=(128,128,50)),
-    #RandSpatialCrop((128, 128, 50), random_size=False),
-    #RandFlip(prob=0.5,spatial_axis=1),
-    #RandAdjustContrast(prob=0.5, gamma=[0.5,0.9]),
-    #ToTensor,
-    #Lambda(lambda x: x.squeeze()),
-    #RandRotate90(prob=1,spatial_axes=[2,3])
+    Resize(spatial_size=(128,128,64)),
 ])
 train_ds = ArrayDataset(images, transforms, segs, transforms)
-# normal_dataset = ImageDataset(
-#     normal_ct_paths,
-#     transform=mtf.Compose(
-#         [
-#             mtf.ScaleIntensityRange(
-#                 a_min=-150, a_max=250, b_min=0.0, b_max=1.0, clip=True
-#             ),
-#             mtf.EnsureChannelFirst(),
-#             mtf.Resize((224, 224, 128)),
-#             mtf.Rotate90(k=3, spatial_axes=(0, 1)),
-#             mtf.Flip(spatial_axis=(1)),
-#             mtf.Flip(spatial_axis=(2)),
-#         ]
-#     ),
-# )
-# tumour_dataset = ImageDataset(
-#     tumour_ct_paths,
-#     transform=mtf.Compose(
-#         [
-#             mtf.ScaleIntensityRange(
-#                 a_min=-150, a_max=250, b_min=0.0, b_max=1.0, clip=True
-#             ),
-#             mtf.EnsureChannelFirst(),
-#             mtf.Resize((224, 224, 128)),
-#             mtf.Rotate90(spatial_axes=(0, 1)),
-#             mtf.Flip(spatial_axis=(2)),
-#         ]
-#     ),
-# )
-# %%
-x_normal = train_ds[0]
 
 # %%
-fig, axs = plt.subplots(1, 2, sharex=True, sharey=True)
-axs[0].imshow(x_normal[0][0, :, :, 35], cmap="gray")
-axs[1].imshow(x_normal[1][0, :, :, 35], cmap="gray")
-axs[0].set_xlabel("Normal")
-axs[1].set_xlabel("Label")
-for ax in axs:
-    ax.set_yticklabels([])
-    ax.set_yticks([])
-    ax.set_xticklabels([])
-    ax.set_xticks([])
-fig.show()
+# x_normal = train_ds[0]
+
+# # %%
+# fig, axs = plt.subplots(1, 2, sharex=True, sharey=True)
+# axs[0].imshow(x_normal[0][0, :, :, 35], cmap="gray")
+# axs[1].imshow(x_normal[1][0, :, :, 35], cmap="gray")
+# axs[0].set_xlabel("Normal")
+# axs[1].set_xlabel("Label")
+# for ax in axs:
+#     ax.set_yticklabels([])
+#     ax.set_yticks([])
+#     ax.set_xticklabels([])
+#     ax.set_xticks([])
+# fig.show()
 #plt.savefig("output2.png")
 # %%
 # normal_dataloader = mdt.dataloader.DataLoader(

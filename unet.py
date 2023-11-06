@@ -353,7 +353,7 @@ class UpBlock(nn.Module):
         return y
 
 
-class UNet(nn.Module):
+class Unet(nn.Module):
     def __init__(
         self,
         in_channels: int = 1,

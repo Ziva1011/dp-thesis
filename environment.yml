@@ -41,3 +41,4 @@ dependencies:
     - torchinfo
     - opacus
     - git+https://github.com/a1302z/ACSConv
+    - inplace-abn

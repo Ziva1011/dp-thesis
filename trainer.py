@@ -102,9 +102,7 @@ class Trainer:
             self.optimizer.step()  # update the parameters
             self.optimizer.zero_grad()  # zerograd the parameters
 
-            target = target.squeeze(
-                1
-            ).long()  # because multiclass receives size (N, ...)
+            target = target.squeeze(1).long()  # because multiclass receives size (N, ...)
             mcf1s = MulticlassF1Score(num_classes=3, average=None).to(self.device)
             f1 = f1 + mcf1s(out, target).cpu().numpy()
 

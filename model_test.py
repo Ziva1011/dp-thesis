@@ -3,6 +3,8 @@ import torch
 import glob
 from acsconv.converters import ACSConverter
 import segmentation_models_pytorch as smp
+from segmentation_models.linknet import Linknet
+
 from monai.data import (
     Dataset,
     DataLoader,
@@ -10,40 +12,46 @@ from monai.data import (
     pad_list_data_collate,
     ArrayDataset,
 )
-from monai.utils import first 
-#%%
-
-# %%
-train_files = glob.glob("./data/liver_seg/train/*.nii")
-train_labels = glob.glob("./data/liver_seg_labels/train/*.nii")
-train_files = [
-        {"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)
-    ]
-
-#%%
-train_ds = Dataset(data=train_files, transform=None)
-train_dl = DataLoader(
-    train_ds,
-    batch_size=4,
-    shuffle=True,
-    num_workers=2,
-    collate_fn=list_data_collate,
-    pin_memory=torch.cuda.is_available(),
+from monai.networks.nets import(
+    VNet,
 )
+from opacus import validators
+from monai.utils import first 
+from torchinfo import summary
+
+#%%
+
 # %%
-model_2d = smp.Linknet(in_channels=1, classes=3)
-model = ACSConverter(model_2d)
+data = torch.randn(1, 1, 128, 128, 64)
+
+#%%
+
+# %%
+#model_2d = smp.Linknet(in_channels=1, classes=3)
+#summary(model_2d, input_size=(1, 1, 128, 128))
+#model_2d = smp.PSPNet(in_channels=1, classes=3)
+#model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
+
+model_3d = Linknet(in_channels=1, classes=3)
+out = model_3d(data)
+#model = ACSConverter(model_2d)
+
+# model= VNet(
+#             spatial_dims=3, 
+#             in_channels=1, 
+#             out_channels=3)
+# model = validators.ModuleValidator.fix(model)
+    
 
 
 #%%
-dict= first(iter(train_dl))
-model.train()
+#model.train()
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-x= dict["img"]
-y= dict["seg"]
+#%%
+
 
 #%%
 #input, target = (x.to(device), y.to(device))
-out = model(x)
+#out = model(data)
 # %%
