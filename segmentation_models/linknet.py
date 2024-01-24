@@ -1,13 +1,26 @@
 from typing import Optional, Union
 
 from segmentation_models_pytorch.base import (
-    SegmentationHead,
     SegmentationModel,
     ClassificationHead,
 )
+
 #from .encoder import get_encoder
+#from segmentation_models__pytorch.segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.encoders import get_encoder
 from .decoder import LinknetDecoder
+from .encoder_2 import LinknetEncoder
+import torch.nn as nn
+from segmentation_models_pytorch.base.modules import Activation
+
+
+class SegmentationHead(nn.Sequential):
+    def __init__(self, in_channels, out_channels, kernel_size=3, activation=None, upsampling=1):
+        conv3d = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        activation = Activation(activation)
+        super().__init__(conv3d, upsampling, activation)
+
 
 
 class Linknet(SegmentationModel):
@@ -68,11 +81,18 @@ class Linknet(SegmentationModel):
         if encoder_name.startswith("mit_b"):
             raise ValueError("Encoder `{}` is not supported for Linknet".format(encoder_name))
 
-        self.encoder = get_encoder(
-            encoder_name,
-            in_channels=in_channels,
-            depth=encoder_depth,
-            weights=encoder_weights,
+        # self.encoder = get_encoder(
+        #    encoder_name,
+        #    in_channels=in_channels,
+        #    depth=encoder_depth,
+        #    weights=encoder_weights,
+        # )
+
+        self.encoder = LinknetEncoder(
+            encoder_channels=in_channels,
+            n_blocks=encoder_depth,
+            prefinal_channels=32,
+            use_batchnorm=decoder_use_batchnorm,
         )
 
         self.decoder = LinknetDecoder(
