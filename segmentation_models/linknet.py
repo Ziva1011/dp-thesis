@@ -89,9 +89,9 @@ class Linknet(SegmentationModel):
         # )
 
         self.encoder = LinknetEncoder(
-            encoder_channels=in_channels,
-            n_blocks=encoder_depth,
-            prefinal_channels=32,
+            in_channels=in_channels,
+            depth=encoder_depth,
+            output_stride=32,
             use_batchnorm=decoder_use_batchnorm,
         )
 

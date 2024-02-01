@@ -30,6 +30,7 @@ class BasicBlock(nn.Sequential):
             kernel_size,
             stride=stride,
             padding=padding,
+            dilation=1,
             bias=not (use_batchnorm),
         )
         relu = nn.ReLU(inplace=True)
@@ -82,11 +83,8 @@ class EncoderBlock(nn.Module):
 
 class LinknetEncoder(nn.Module):
     def __init__(
-        self,
-        encoder_channels,
-        prefinal_channels=32,
-        n_blocks=5,
-        use_batchnorm=True,
+        self, pretrained=True, in_channels=3, depth=5, output_stride=32, use_batchnorm=True
+        
     ):
         super().__init__()
 
@@ -104,9 +102,11 @@ class LinknetEncoder(nn.Module):
         # layer2 = 
         # layer3 = 
         # layer4 = 
-        self.out_channels = [1, 64, 64, 128, 256, 512]
-        self.blocks = nn.Sequential(
-            nn.Conv3d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False),
+        
+        self._out_channels = [1, 64, 64, 128, 256, 512]
+        # self.output_stride = 1 
+        self.model = nn.Sequential(
+            nn.Conv3d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), dilation=3, bias=False),
             nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             nn.ReLU(inplace=True),
             nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False),
@@ -117,18 +117,37 @@ class LinknetEncoder(nn.Module):
             EncoderBlock(256, 512, 3, use_batchnorm=use_batchnorm),
         )
 
+        kwargs = dict(
+            in_chans=in_channels,
+            features_only=True,
+            output_stride=output_stride,
+            pretrained=pretrained,
+            out_indices=tuple(range(depth)),
+        )
+
+        # not all models support output stride argument, drop it by default
+        if output_stride == 32:
+            kwargs.pop("output_stride")
+
+
+        self._in_channels = in_channels
+        # self._out_channels = [in_channels,] + self.model.feature_info.channels()
+        self._depth = depth
+        self._output_stride = output_stride
         #super(LinknetEncoder, self).__init__(conv1, bn1, relu, maxpool, blocks)
 
+    def forward(self, x):
+        features = self.model(x)
+        features = [
+            x,
+        ] + features
+        return features
 
-    def forward(self, *features):
-        features = features[1:]  # remove first skip
-        features = features[::-1]  # reverse channels to start from head of encoder
 
-        x = features[0]
-        skips = features[1:]
+    @property
+    def out_channels(self):
+        return self._out_channels
 
-        for i, encoder_block in enumerate(self.blocks):
-            skip = skips[i] if i < len(skips) else None
-            x = encoder_block(x, skip)
-
-        return x
+    @property
+    def output_stride(self):
+        return min(self._output_stride, 2**self._depth)
