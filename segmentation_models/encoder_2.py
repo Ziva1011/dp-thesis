@@ -13,7 +13,7 @@ class BasicBlock(nn.Sequential):
         in_channels,
         out_channels,
         kernel_size,
-        padding=0,
+        padding=1,
         stride=1,
         use_batchnorm=True,
     ):
@@ -45,7 +45,32 @@ class BasicBlock(nn.Sequential):
         else:
             bn = nn.Identity()
 
-        super(BasicBlock, self).__init__(conv, bn, relu, conv, bn)
+        conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=1,bias=not (use_batchnorm))
+
+        downsample = nn.Sequential (
+            nn.Conv3d(in_channels, out_channels, kernel_size = 1, stride=2, dilation=1,bias=not (use_batchnorm)),
+            nn.BatchNorm3d(out_channels)
+        )
+
+        maxpool = nn.MaxPool3d(kernel_size = 1, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
+
+        if (in_channels== out_channels):
+            conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=1,bias=not (use_batchnorm))
+        
+            super(BasicBlock, self).__init__(conv, bn, relu, conv2, bn)
+        else:
+            conv = nn.Conv3d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=2,
+            padding=padding,
+            dilation=1,
+            bias=not (use_batchnorm),
+        )
+            conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, stride=1, padding=padding, dilation=1,bias=not (use_batchnorm))
+        
+            super(BasicBlock, self).__init__(conv, bn, relu, conv2, bn, maxpool)
 
 
 
@@ -69,10 +94,10 @@ class EncoderBlock(nn.Module):
 
         self.block = nn.Sequential()
 
-        self.block.add_module("0",BasicBlock(in_channels, out_channels, kernel_size=1, use_batchnorm=use_batchnorm))
+        self.block.add_module("0",BasicBlock(in_channels, out_channels, kernel_size=3, use_batchnorm=use_batchnorm))
 
         for i in range(n_blocks-1):
-            self.block.add_module(str(i+1), BasicBlock(out_channels, out_channels, kernel_size=1, use_batchnorm=use_batchnorm))
+            self.block.add_module(str(i+1), BasicBlock(out_channels, out_channels, kernel_size=3, use_batchnorm=use_batchnorm))
 
     def forward(self, x, skip=None):
         x = self.block(x)
@@ -106,7 +131,7 @@ class LinknetEncoder(nn.Module):
         self._out_channels = [1, 64, 64, 128, 256, 512]
         # self.output_stride = 1 
         self.model = nn.Sequential(
-            nn.Conv3d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), dilation=3, bias=False),
+            nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3,bias=False),
             nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             nn.ReLU(inplace=True),
             nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False),
@@ -140,7 +165,7 @@ class LinknetEncoder(nn.Module):
         features = self.model(x)
         features = [
             x,
-        ] + features
+        ] + [features]
         return features
 
 
