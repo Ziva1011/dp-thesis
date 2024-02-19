@@ -106,7 +106,7 @@ class EncoderBlock(nn.Module):
         return x
 
 
-class LinknetEncoder(nn.Module):
+class ResnetEncoder(nn.Module):
     def __init__(
         self, pretrained=True, in_channels=3, depth=5, output_stride=32, use_batchnorm=True
         

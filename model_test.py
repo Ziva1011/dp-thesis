@@ -3,7 +3,8 @@ import torch
 import glob
 from acsconv.converters import ACSConverter
 import segmentation_models_pytorch as smp
-from segmentation_models.linknet import Linknet
+from segmentation_models.linknet.linknet import Linknet
+from segmentation_models.fpn.fpn import FPN
 import segmentation_models_pytorch as smp
 import torchvision.models as models
 
@@ -43,6 +44,8 @@ res_net= models.resnet18(pretrained=True)
 model_2d = smp.Linknet(in_channels=1, classes=3)
 out = model_2d(data2)
 model_3d = Linknet(in_channels=1, classes=3)
+summary(model_3d,input_size=(1, 1, 128, 128, 64))
+model_3d = FPN(in_channels=1, classes=3, encoder_weights=None)
 out = model_3d(data)
 #model = ACSConverter(model_2d)
 

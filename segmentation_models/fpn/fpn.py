@@ -4,33 +4,13 @@ from segmentation_models_pytorch.base import (
     SegmentationModel,
     ClassificationHead,
 )
-
-#from .encoder import get_encoder
-#from segmentation_models__pytorch.segmentation_models_pytorch.encoders import get_encoder
-from segmentation_models_pytorch.encoders import get_encoder
-from .decoder import LinknetDecoder
-from .encoder_2 import LinknetEncoder
-import torch.nn as nn
-from segmentation_models_pytorch.base.modules import Activation
+from ..encoder_2 import ResnetEncoder
+from ..segmentationHead import SegmentationHead
+from .decoder import FPNDecoder
 
 
-class SegmentationHead(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size=3, activation=None, upsampling=1):
-        conv3d = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
-        upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
-        activation = Activation(activation)
-        super().__init__(conv3d, upsampling, activation)
-
-
-
-class Linknet(SegmentationModel):
-    """Linknet_ is a fully convolution neural network for image semantic segmentation. Consist of *encoder*
-    and *decoder* parts connected with *skip connections*. Encoder extract features of different spatial
-    resolution (skip connections) which are used by decoder to define accurate segmentation mask. Use *sum*
-    for fusing decoder blocks with skip connections.
-
-    Note:
-        This implementation by default has 4 skip connections (original - 3).
+class FPN(SegmentationModel):
+    """FPN_ is a fully convolution neural network for image semantic segmentation.
 
     Args:
         encoder_name: Name of the classification model that will be used as an encoder (a.k.a backbone)
@@ -41,15 +21,18 @@ class Linknet(SegmentationModel):
             Default is 5
         encoder_weights: One of **None** (random initialization), **"imagenet"** (pre-training on ImageNet) and
             other pretrained weights (see table with available weights for each encoder_name)
-        decoder_use_batchnorm: If **True**, BatchNorm2d layer between Conv2D and Activation layers
-            is used. If **"inplace"** InplaceABN will be used, allows to decrease memory consumption.
-            Available options are **True, False, "inplace"**
+        decoder_pyramid_channels: A number of convolution filters in Feature Pyramid of FPN_
+        decoder_segmentation_channels: A number of convolution filters in segmentation blocks of FPN_
+        decoder_merge_policy: Determines how to merge pyramid features inside FPN. Available options are **add**
+            and **cat**
+        decoder_dropout: Spatial dropout rate in range (0, 1) for feature pyramid in FPN_
         in_channels: A number of input channels for the model, default is 3 (RGB images)
         classes: A number of classes for output mask (or you can think as a number of channels of output mask)
         activation: An activation function to apply after the final convolution layer.
             Available options are **"sigmoid"**, **"softmax"**, **"logsoftmax"**, **"tanh"**, **"identity"**,
                 **callable** and **None**.
             Default is **None**
+        upsampling: Final upsampling factor. Default is 4 to preserve input-output spatial shape identity
         aux_params: Dictionary with parameters of the auxiliary output (classification head). Auxiliary output is build
             on top of encoder if **aux_params** is not **None** (default). Supported params:
                 - classes (int): A number of classes
@@ -59,10 +42,11 @@ class Linknet(SegmentationModel):
                     (could be **None** to return logits)
 
     Returns:
-        ``torch.nn.Module``: **Linknet**
+        ``torch.nn.Module``: **FPN**
 
-    .. _Linknet:
-        https://arxiv.org/abs/1707.03718
+    .. _FPN:
+        http://presentations.cocodataset.org/COCO17-Stuff-FAIR.pdf
+
     """
 
     def __init__(
@@ -70,40 +54,44 @@ class Linknet(SegmentationModel):
         encoder_name: str = "resnet34",
         encoder_depth: int = 5,
         encoder_weights: Optional[str] = "imagenet",
-        decoder_use_batchnorm: bool = True,
+        decoder_pyramid_channels: int = 256,
+        decoder_segmentation_channels: int = 128,
+        decoder_merge_policy: str = "add",
+        decoder_dropout: float = 0.2,
         in_channels: int = 3,
         classes: int = 1,
-        activation: Optional[Union[str, callable]] = None,
+        activation: Optional[str] = None,
+        upsampling: int = 4,
         aux_params: Optional[dict] = None,
     ):
         super().__init__()
 
-        if encoder_name.startswith("mit_b"):
-            raise ValueError("Encoder `{}` is not supported for Linknet".format(encoder_name))
+        # validate input params
+        if encoder_name.startswith("mit_b") and encoder_depth != 5:
+            raise ValueError("Encoder {} support only encoder_depth=5".format(encoder_name))
 
-        # self.encoder = get_encoder(
-        #    encoder_name,
-        #    in_channels=in_channels,
-        #    depth=encoder_depth,
-        #    weights=encoder_weights,
-        # )
-
-        self.encoder = LinknetEncoder(
+        self.encoder = ResnetEncoder(
             in_channels=in_channels,
             depth=encoder_depth,
             output_stride=32,
-            use_batchnorm=decoder_use_batchnorm,
+            use_batchnorm=True,
         )
 
-        self.decoder = LinknetDecoder(
+        self.decoder = FPNDecoder(
             encoder_channels=self.encoder.out_channels,
-            n_blocks=encoder_depth,
-            prefinal_channels=32,
-            use_batchnorm=decoder_use_batchnorm,
+            encoder_depth=encoder_depth,
+            pyramid_channels=decoder_pyramid_channels,
+            segmentation_channels=decoder_segmentation_channels,
+            dropout=decoder_dropout,
+            merge_policy=decoder_merge_policy,
         )
 
         self.segmentation_head = SegmentationHead(
-            in_channels=32, out_channels=classes, activation=activation, kernel_size=1
+            in_channels=self.decoder.out_channels,
+            out_channels=classes,
+            activation=activation,
+            kernel_size=1,
+            upsampling=upsampling,
         )
 
         if aux_params is not None:
@@ -111,5 +99,5 @@ class Linknet(SegmentationModel):
         else:
             self.classification_head = None
 
-        self.name = "link-{}".format(encoder_name)
+        self.name = "fpn-{}".format(encoder_name)
         self.initialize()
