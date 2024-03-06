@@ -1,4 +1,5 @@
 import torch.nn as nn
+from torch import Tensor
 
 from segmentation_models_pytorch.base import modules
 
@@ -72,6 +73,61 @@ class BasicBlock(nn.Sequential):
         
             super(BasicBlock, self).__init__(conv, bn, relu, conv2, bn, maxpool)
 
+class BasicBlock2(nn.Module):
+    def __init__(self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        padding=1,
+        stride=1,
+        use_batchnorm=True,
+    ):
+        super().__init__()
+        self.stride = stride
+        if use_batchnorm == "inplace" and InPlaceABN is None:
+            raise RuntimeError(
+                "In order to use `use_batchnorm='inplace'` inplace_abn package must be installed. "
+                + "To install see: https://github.com/mapillary/inplace_abn"
+            )
+        
+        self.conv = nn.Conv3d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=1,
+            bias=not (use_batchnorm),
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+        self.bn = nn.BatchNorm3d(out_channels)
+
+        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=padding, dilation=1,bias=not (use_batchnorm))
+
+        self.downsample = nn.Sequential (
+            nn.Conv3d(in_channels, out_channels, kernel_size = 1, stride=2, dilation=1,bias=not (use_batchnorm)),
+            nn.BatchNorm3d(out_channels)
+        )
+
+        self.maxpool = nn.MaxPool3d(kernel_size = 1, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
+
+
+    def forward(self, x: Tensor) -> Tensor:
+
+        out = self.conv(x)
+        out = self.bn(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn(out)
+
+        if self.stride != 1:
+            x = self.downsample(x)
+
+        out += x
+        out = self.relu(out)
+
+        return out
 
 
 class TransposeX2(nn.Sequential):
@@ -94,16 +150,119 @@ class EncoderBlock(nn.Module):
 
         self.block = nn.Sequential()
 
-        self.block.add_module("0",BasicBlock(in_channels, out_channels, kernel_size=3, use_batchnorm=use_batchnorm))
+        self.block.add_module("0",BasicBlock2(in_channels, out_channels, kernel_size=3, use_batchnorm=use_batchnorm))
 
         for i in range(n_blocks-1):
-            self.block.add_module(str(i+1), BasicBlock(out_channels, out_channels, kernel_size=3, use_batchnorm=use_batchnorm))
+            self.block.add_module(str(i+1), BasicBlock2(out_channels, out_channels, kernel_size=3, stride= 2, use_batchnorm=use_batchnorm))
 
-    def forward(self, x, skip=None):
+    def forward(self, x):
         x = self.block(x)
-        if skip is not None:
-            x = x + skip
+
         return x
+
+
+
+
+class ResNetEncoder2(nn.Module):
+    def __init__(self, pretrained=True, in_channels=3, depth=5, output_stride=32):
+        super().__init__()
+        self._depth = depth
+        self._out_channels = (1, 64, 64, 128, 256, 512)
+        self._in_channels = in_channels
+        self.output_stride = 32
+
+
+        kwargs = dict(
+            in_chans=in_channels,
+            features_only=True,
+            output_stride=output_stride,
+            pretrained=pretrained,
+            out_indices=tuple(range(depth)),
+        )
+
+        # not all models support output stride argument, drop it by default
+        if output_stride == 32:
+            kwargs.pop("output_stride")
+
+
+        self.conv = nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3,bias=False)
+        self.relu = nn.ReLU(inplace=True)
+        self.bn = nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+
+        self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
+        #self.layer1 = EncoderBlock(64, 64, 3, use_batchnorm=True),
+        self.layer1 = self._make_layer(3, 64, 64, stride=1)
+        self.layer2 = self._make_layer(4, 64, 128, stride=2)
+        self.layer3 = self._make_layer(6, 128, 256, stride=2)
+        self.layer4 = self._make_layer(3, 256, 512, stride=2)
+
+    def get_stages(self):
+        return [
+            nn.Identity(),
+            nn.Sequential(self.conv, self.bn, self.relu),
+            nn.Sequential(self.maxpool, self.layer1),
+            self.layer2,
+            self.layer3,
+            self.layer4,
+        ]
+
+    def forward(self, x):
+        stages = self.get_stages()
+
+        features = []
+        for i in range(self._depth + 1):
+            x = stages[i](x)
+            features.append(x)
+
+        return features
+
+    # def forward(self, x):
+    #     identity = x
+    #     #stages = self.get_stages()
+    #     x = self.conv(x)
+    #     x = self.bn(x)
+    #     x = self.relu(x)
+    #     x = self.maxpool(x)
+    #     x = self.layer1(x)
+    #     x = self.layer2(x)
+    #     x = self.layer3(x)
+    #     x = self.layer4(x)
+
+    #     features = x
+    #     #x = self.layer1(x)
+    #     features = [
+    #         identity,
+    #     ] + [features]
+
+    #     return features
+    
+    def _make_layer(
+        self,
+        blocks: int,
+        in_channels,
+        out_channels,
+        stride: int = 1,
+        dilate: bool = False,
+    ) -> nn.Sequential:
+
+        layers = []
+        layers.append(
+           BasicBlock2(in_channels, out_channels, kernel_size=3, stride=stride)
+        )
+        
+        for _ in range(1, blocks):
+            layers.append(
+                BasicBlock2(out_channels, out_channels, kernel_size=3)
+            )
+            
+
+        return nn.Sequential(*layers)
+        # features = []
+        # for i in range(self._depth + 1):
+        #     x = stages[i](x)
+        #     features.append(x)
+
+        # return features
 
 
 class ResnetEncoder(nn.Module):
@@ -128,8 +287,14 @@ class ResnetEncoder(nn.Module):
         # layer3 = 
         # layer4 = 
         
-        self._out_channels = [1, 64, 64, 128, 256, 512]
-        # self.output_stride = 1 
+        self._out_channels = (3, 64, 64, 128, 256, 512)
+
+        # self.conv3d = nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3,bias=False)
+        # self.batch = nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        # self.relu = nn.ReLU(inplace=True)
+        # self.max = nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
+        # self.block1 = EncoderBlock(64, 64, 3, use_batchnorm=use_batchnorm)
+        
         self.model = nn.Sequential(
             nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3,bias=False),
             nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
@@ -162,6 +327,7 @@ class ResnetEncoder(nn.Module):
         #super(LinknetEncoder, self).__init__(conv1, bn1, relu, maxpool, blocks)
 
     def forward(self, x):
+
         features = self.model(x)
         features = [
             x,
@@ -176,3 +342,4 @@ class ResnetEncoder(nn.Module):
     @property
     def output_stride(self):
         return min(self._output_stride, 2**self._depth)
+
