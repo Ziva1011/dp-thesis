@@ -9,7 +9,7 @@ from segmentation_models_pytorch.base import (
 #from segmentation_models__pytorch.segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.encoders import get_encoder
 from .decoder import LinknetDecoder
-from ..encoder_2 import ResnetEncoder,ResNetEncoder2
+from ..encoder_2 import ResNetEncoder
 import torch.nn as nn
 from segmentation_models_pytorch.base.modules import Activation
 from ..segmentationHead import SegmentationHead
@@ -86,9 +86,10 @@ class Linknet(SegmentationModel):
         #     output_stride=32,
         #     use_batchnorm=decoder_use_batchnorm,
         # )
-        self.encoder = ResNetEncoder2(in_channels=in_channels,
+        self.encoder = ResNetEncoder(
+            in_channels=in_channels,
             depth=encoder_depth,
-            output_stride=32,)
+            output_stride=32)
 
         self.decoder = LinknetDecoder(
             encoder_channels=self.encoder._out_channels,
@@ -98,11 +99,14 @@ class Linknet(SegmentationModel):
         )
 
         self.segmentation_head = SegmentationHead(
-            in_channels=32, out_channels=classes, activation=activation, kernel_size=1
+            in_channels=32, 
+            out_channels=classes, 
+            activation=activation, 
+            kernel_size=1
         )
 
         if aux_params is not None:
-            self.classification_head = ClassificationHead(in_channels=self.encoder.out_channels[-1], **aux_params)
+            self.classification_head = ClassificationHead(in_channels=self.encoder._out_channels[-1], **aux_params)
         else:
             self.classification_head = None
 

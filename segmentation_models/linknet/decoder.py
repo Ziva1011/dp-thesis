@@ -30,7 +30,7 @@ class Conv3dReLU(nn.Sequential):
             kernel_size,
             stride=stride,
             padding=padding,
-            bias=not (use_batchnorm),
+            bias=False,
         )
         relu = nn.ReLU(inplace=True)
 
