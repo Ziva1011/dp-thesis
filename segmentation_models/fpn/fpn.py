@@ -4,7 +4,7 @@ from segmentation_models_pytorch.base import (
     SegmentationModel,
     ClassificationHead,
 )
-from ..encoder_2 import ResnetEncoder
+from ..encoder_2 import ResNetEncoder
 from ..segmentationHead import SegmentationHead
 from .decoder import FPNDecoder
 
@@ -70,15 +70,14 @@ class FPN(SegmentationModel):
         if encoder_name.startswith("mit_b") and encoder_depth != 5:
             raise ValueError("Encoder {} support only encoder_depth=5".format(encoder_name))
 
-        self.encoder = ResnetEncoder(
+        self.encoder = ResNetEncoder(
             in_channels=in_channels,
             depth=encoder_depth,
-            output_stride=32,
-            use_batchnorm=True,
+            output_stride=32
         )
 
         self.decoder = FPNDecoder(
-            encoder_channels=self.encoder.out_channels,
+            encoder_channels=self.encoder._out_channels,
             encoder_depth=encoder_depth,
             pyramid_channels=decoder_pyramid_channels,
             segmentation_channels=decoder_segmentation_channels,
