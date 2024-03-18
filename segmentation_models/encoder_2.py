@@ -38,6 +38,8 @@ class BasicBlock(nn.Module):
         self.bn = nn.BatchNorm3d(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=padding, dilation=1, bias=False)
+        self.bn2 = nn.BatchNorm3d(out_channels)
+
         if stride != 1:
             self.downsample = nn.Sequential (
                 nn.Conv3d(in_channels, out_channels, kernel_size = 1, stride=2, dilation=1, bias=False),
@@ -53,7 +55,7 @@ class BasicBlock(nn.Module):
         out = self.bn(out)
         out = self.relu(out)
         out = self.conv2(out)
-        out = self.bn(out)
+        out = self.bn2(out)
 
         if self.stride != 1:
             identity = self.downsample(x)
@@ -69,7 +71,8 @@ class ResNetEncoder(nn.Module):
     def __init__(self, pretrained=True, in_channels=3, depth=5, output_stride=32):
         super().__init__()
         self._depth = depth
-        self._out_channels = (1, 64, 64, 128, 256, 512)
+        out_channels = (1, 64, 64, 128, 256, 512)
+        self._out_channels = out_channels[:depth+1]
         self._in_channels = in_channels
         self.output_stride = 32
 
