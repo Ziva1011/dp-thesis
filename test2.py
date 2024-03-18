@@ -14,6 +14,7 @@ from torchmetrics.classification import MulticlassF1Score
 from torchinfo import summary
 
 from segmentation_models.linknet.linknet import Linknet
+from segmentation_models.fpn.fpn import FPN
 
 # imports from dptraining
 from dptraining.config import Config
@@ -171,7 +172,7 @@ def main(config: Config):
 
     # model = thebest.eini[i], i in dict
     private = False
-    architecture = 'linkNet'
+    architecture = 'fpn'
 
 
     if (architecture =='dynUnet'):
@@ -239,8 +240,9 @@ def main(config: Config):
         model = Linknet(in_channels=1, classes=3)
 
     elif (architecture=="fpn"):
-        model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
-        model = ACSConverter(model_2d)
+        #model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
+        #model = ACSConverter(model_2d)
+        model = FPN(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="psp"):
         model_2d = smp.PSPNet(in_channels=1, classes=3)
