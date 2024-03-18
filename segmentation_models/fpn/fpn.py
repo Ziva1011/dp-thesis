@@ -5,7 +5,7 @@ from segmentation_models_pytorch.base import (
     ClassificationHead,
 )
 from ..encoder_2 import ResNetEncoder
-from ..segmentationHead import SegmentationHead
+from ..heads import SegmentationHead
 from .decoder import FPNDecoder
 
 
