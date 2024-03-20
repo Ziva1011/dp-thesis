@@ -10,5 +10,6 @@ Miniconda3-latest-Linux-x86_64.sh
 /wandb
 output.png
 /data
-linknet.onnx
-linknet2d.onnx
+/onnx   
+
+dptraining/datasets/nifti/__pycache__
