@@ -1,6 +1,8 @@
 import torch.nn as nn
 from torch import Tensor
 
+from typing import Any, Callable, List, Optional, Type, Union
+
 from segmentation_models_pytorch.base import modules
 
 try:
@@ -14,8 +16,10 @@ class BasicBlock(nn.Module):
         in_channels,
         out_channels,
         kernel_size,
+        downsample: Optional[nn.Module] = None,
         padding=1,
         stride=1,
+        dilation=1,
         use_batchnorm=True,
     ) -> None:
         super().__init__()
@@ -31,20 +35,17 @@ class BasicBlock(nn.Module):
             out_channels,
             kernel_size,
             stride=stride,
-            padding=padding,
-            dilation=1,
+            padding=dilation,
+            dilation=dilation,
             bias=False,
         )
         self.bn = nn.BatchNorm3d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=padding, dilation=1, bias=False)
+        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=dilation, dilation=dilation, bias=False)
         self.bn2 = nn.BatchNorm3d(out_channels)
 
-        if stride != 1:
-            self.downsample = nn.Sequential (
-                nn.Conv3d(in_channels, out_channels, kernel_size = 1, stride=2, dilation=1, bias=False),
-                nn.BatchNorm3d(out_channels)
-            )
+        self.downsample = downsample
+     
         self.stride = stride
 
 
@@ -57,7 +58,7 @@ class BasicBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
 
-        if self.stride != 1:
+        if self.downsample is not None:
             identity = self.downsample(x)
 
         out += identity
@@ -68,14 +69,23 @@ class BasicBlock(nn.Module):
 
 
 class ResNetEncoder(nn.Module):
-    def __init__(self, pretrained=True, in_channels=3, depth=5, output_stride=32):
+    def __init__(self, pretrained=True, in_channels=3, depth=5, output_stride=32, replace_stride_with_dilation: Optional[List[bool]] = None):
         super().__init__()
         self._depth = depth
         out_channels = (1, 64, 64, 128, 256, 512)
         self._out_channels = out_channels[:depth+1]
         self._in_channels = in_channels
-        self.output_stride = 32
+        self.output_stride = output_stride
+        self.dilation = 1
+        self.inplanes = 64
 
+        if replace_stride_with_dilation is None:
+            replace_stride_with_dilation = [False, False, False]
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError(
+                "replace_stride_with_dilation should be None "
+                f"or a 3-element tuple, got {replace_stride_with_dilation}"
+            )
 
         kwargs = dict(
             in_chans=in_channels,
@@ -94,11 +104,11 @@ class ResNetEncoder(nn.Module):
         self.bn = nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
-        self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
+        self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1 )
         self.layer1 = self._make_layer(blocks=3, in_channels=64, out_channels=64, stride=1)
-        self.layer2 = self._make_layer(blocks=4, in_channels=64, out_channels=128, stride=2)
-        self.layer3 = self._make_layer(blocks=6, in_channels=128, out_channels=256, stride=2)
-        self.layer4 = self._make_layer(blocks=3, in_channels=256, out_channels=512, stride=2)
+        self.layer2 = self._make_layer(blocks=4, in_channels=64, out_channels=128, stride=2, dilate=replace_stride_with_dilation[0])
+        self.layer3 = self._make_layer(blocks=6, in_channels=128, out_channels=256, stride=2, dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(blocks=3, in_channels=256, out_channels=512, stride=2, dilate=replace_stride_with_dilation[2])
 
     def get_stages(self):
         return [
@@ -129,14 +139,25 @@ class ResNetEncoder(nn.Module):
         dilate: bool = False,
     ) -> nn.Sequential:
 
+        downsample = None
+
+        if dilate:
+            self.dilation *= stride
+            stride = 1
+
+        if stride != 1 or self.inplanes != in_channels:
+            downsample = nn.Sequential (
+                nn.Conv3d(in_channels, out_channels, kernel_size = 1, stride=stride, bias=False, dilation=self.dilation),
+                nn.BatchNorm3d(out_channels)
+            )
         layers = []
         layers.append(
-           BasicBlock(in_channels, out_channels, kernel_size=3, stride=stride)
+           BasicBlock(in_channels, out_channels, kernel_size=3, downsample=downsample, stride=stride, dilation=self.dilation)
         )
         
         for _ in range(1, blocks):
             layers.append(
-                BasicBlock(out_channels, out_channels, kernel_size=3)
+                BasicBlock(out_channels, out_channels, kernel_size=3, dilation=self.dilation)
             )
             
 

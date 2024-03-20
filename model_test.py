@@ -3,8 +3,12 @@ import torch
 import glob
 from acsconv.converters import ACSConverter
 import segmentation_models_pytorch as smp
+
 from segmentation_models.linknet.linknet import Linknet
 from segmentation_models.fpn.fpn import FPN
+from segmentation_models.psp.psp import PSPNet
+from segmentation_models.pan.pan import PAN
+
 import segmentation_models_pytorch as smp
 import torchvision.models as models
 import onnx
@@ -26,9 +30,10 @@ from torchinfo import summary
 # %%
 data = torch.randn(1, 1, 128, 128, 64)
 
-#model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
+# model_2d = smp.Linknet(in_channels=1, classes=3)
+model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
 # model_2d = smp.PSPNet(in_channels=1, classes=3)
-# model_2d = smp.PAN(in_channels=1, classes=3)
+model_2d = smp.PAN(in_channels=1, classes=3)
 # model_2d = smp.DeepLabV3(in_channels=1, classes=3)
 # model_2d = smp.DeepLabV3Plus(in_channels=1, classes=3)
 
@@ -37,18 +42,17 @@ data2 = torch.randn(1, 1, 128, 128)
 #model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
 res_net= models.resnet18(pretrained=True)
 # %%
-#model_2d = smp.Linknet(in_channels=1, classes=3)
 #summary(model_2d, input_size=(1, 1, 128, 128))
-#model_2d = smp.PSPNet(in_channels=1, classes=3)
-#model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
-model_2d = smp.Linknet(in_channels=1, classes=3)
+onnx_program = torch.onnx.export(model_2d, data2, "./pan_2d.onnx")
 #out = model_2d(data2)
-model_3d = Linknet(in_channels=1, classes=3, encoder_depth=5)
+#model_3d = Linknet(in_channels=1, classes=3)
+#model_3d = PSPNet(in_channels=1, classes=3)
+model_3d = PAN(in_channels=1, classes=3)
 #model = ResNet()
 #summary(model_3d,input_size=(1, 1, 128, 128, 64))
 #model_3d = FPN(in_channels=1, classes=3, encoder_weights=None)
-#out = model_3d(data)
-onnx_program = torch.onnx.export(model_3d, data, "./linknet.onnx")
+out = model_3d(data)
+onnx_program = torch.onnx.export(model_3d, data, "./pan.onnx")
 #onnx_program.save("linknet.onnx")
 #model = ACSConverter(model_2d)
 
