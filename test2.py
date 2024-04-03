@@ -15,6 +15,9 @@ from torchinfo import summary
 
 from segmentation_models.linknet.linknet import Linknet
 from segmentation_models.fpn.fpn import FPN
+from segmentation_models.psp.psp import PSPNet
+from segmentation_models.pan.pan import PAN
+
 
 # imports from dptraining
 from dptraining.config import Config
@@ -172,7 +175,7 @@ def main(config: Config):
 
     # model = thebest.eini[i], i in dict
     private = False
-    architecture = 'fpn'
+    architecture = 'pan'
 
 
     if (architecture =='dynUnet'):
@@ -245,12 +248,14 @@ def main(config: Config):
         model = FPN(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="psp"):
-        model_2d = smp.PSPNet(in_channels=1, classes=3)
-        model = ACSConverter(model_2d)
+        #model_2d = smp.PSPNet(in_channels=1, classes=3)
+        #model = ACSConverter(model_2d)
+        model = PSPNet(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="pan"):
-        model_2d = smp.PAN(in_channels=1, classes=3)
-        model = ACSConverter(model_2d)
+        #model_2d = smp.PAN(in_channels=1, classes=3)
+        #model = ACSConverter(model_2d)
+        model = PAN(in_channels=1, classes=3)
 
     elif (architecture=="deep"):
         model_2d = smp.DeepLabV3(in_channels=1, classes=3)
