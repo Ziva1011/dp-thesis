@@ -3,7 +3,6 @@ from typing import Optional, Union
 from ..encoder_2 import ResNetEncoder
 from segmentation_models_pytorch.base import SegmentationModel
 
-
 from ..heads import (
     SegmentationHead,
     ClassificationHead

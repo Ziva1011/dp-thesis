@@ -1,9 +1,12 @@
 from typing import Optional, Union
 
-from segmentation_models_pytorch.base import (
-    SegmentationModel,
-    ClassificationHead,
+from segmentation_models_pytorch.base import SegmentationModel
+
+from ..heads import (
+    SegmentationHead,
+    ClassificationHead
 )
+
 
 #from .encoder import get_encoder
 #from segmentation_models__pytorch.segmentation_models_pytorch.encoders import get_encoder
@@ -13,7 +16,6 @@ from .decoder import LinknetDecoder
 from ..encoder_2 import ResNetEncoder
 import torch.nn as nn
 from segmentation_models_pytorch.base.modules import Activation
-from ..heads import SegmentationHead
 
 
 class Linknet(SegmentationModel):

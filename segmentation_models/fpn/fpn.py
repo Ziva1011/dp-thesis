@@ -1,11 +1,13 @@
 from typing import Optional, Union
 
-from segmentation_models_pytorch.base import (
-    SegmentationModel,
-    ClassificationHead,
+from segmentation_models_pytorch.base import SegmentationModel
+
+from ..heads import (
+    SegmentationHead,
+    ClassificationHead
 )
+
 from ..encoder_2 import ResNetEncoder
-from ..heads import SegmentationHead
 from .decoder import FPNDecoder
 
 
