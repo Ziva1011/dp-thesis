@@ -4,6 +4,7 @@ from torch import Tensor
 from typing import Any, Callable, List, Optional, Type, Union
 
 from segmentation_models_pytorch.base import modules
+from segmentation_models_pytorch.encoders._base import EncoderMixin
 
 try:
     from inplace_abn import InPlaceABN
@@ -37,11 +38,11 @@ class BasicBlock(nn.Module):
             stride=stride,
             padding=dilation,
             dilation=dilation,
-            bias=False,
+            bias=True,
         )
         self.bn = nn.BatchNorm3d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=dilation, dilation=dilation, bias=False)
+        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=dilation, dilation=dilation, bias=True)
         self.bn2 = nn.BatchNorm3d(out_channels)
 
         self.downsample = downsample
@@ -55,6 +56,7 @@ class BasicBlock(nn.Module):
         out = self.conv(x)
         out = self.bn(out)
         out = self.relu(out)
+
         out = self.conv2(out)
         out = self.bn2(out)
 
@@ -68,14 +70,14 @@ class BasicBlock(nn.Module):
 
 
 
-class ResNetEncoder(nn.Module):
+class ResNetEncoder(nn.Module, EncoderMixin):
     def __init__(self, pretrained=True, in_channels=3, depth=5, output_stride=32, replace_stride_with_dilation: Optional[List[bool]] = None):
         super().__init__()
         self._depth = depth
         out_channels = (1, 64, 64, 128, 256, 512)
         self._out_channels = out_channels[:depth+1]
         self._in_channels = in_channels
-        self.output_stride = output_stride
+        #self.output_stride = output_stride
         self.dilation = 1
         self.inplanes = 64
 
@@ -100,7 +102,7 @@ class ResNetEncoder(nn.Module):
             kwargs.pop("output_stride")
 
 
-        self.conv = nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv = nn.Conv3d(1, 64, kernel_size=7, stride=2, padding=3)
         self.bn = nn.BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
