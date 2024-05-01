@@ -13,7 +13,7 @@ class ConvBnRelu(nn.Module):
         padding: int = 0,
         dilation: int = 1,
         groups: int = 1,
-        bias: bool = True,
+        bias: bool = False,
         add_relu: bool = True,
         interpolate: bool = False,
     ):
@@ -90,7 +90,7 @@ class FPABlock(nn.Module):
             ConvBnRelu(in_channels=1, out_channels=1, kernel_size=5, stride=1, padding=2),
         )
         self.down3 = nn.Sequential(
-            nn.MaxPool3d(kernel_size=2, stride=2),
+            nn.MaxPool3d(kernel_size=(2,2,1), stride=2),
             ConvBnRelu(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1),
             ConvBnRelu(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=1),
         )
@@ -107,11 +107,11 @@ class FPABlock(nn.Module):
         x1 = self.down1(x)
         x2 = self.down2(x1)
         x3 = self.down3(x2)
-        x3 = F.interpolate(x3, size=(h // 4, w // 4, d), **upscale_parameters)
+        x3 = F.interpolate(x3, size=(h // 4, w // 4, d//4), **upscale_parameters)
 
         x2 = self.conv2(x2)
         x = x2 + x3
-        x = F.interpolate(x, size=(h // 2, w // 2, d), **upscale_parameters)
+        x = F.interpolate(x, size=(h // 2, w // 2, d//2), **upscale_parameters)
 
         x1 = self.conv1(x1)
         x = x + x1
