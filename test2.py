@@ -9,14 +9,16 @@ from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
 import segmentation_models_pytorch as smp
 
-# ßfrom segmentation_models_pytorch.losses import DiceLoss
+# from segmentation_models_pytorch.losses import DiceLoss
 from torchmetrics.classification import MulticlassF1Score
 from torchinfo import summary
+
 
 from segmentation_models.linknet.linknet import Linknet
 from segmentation_models.fpn.fpn import FPN
 from segmentation_models.psp.psp import PSPNet
 from segmentation_models.pan.pan import PAN
+from segmentation_models.deeplabv3.deeplab import DeepLabV3
 
 
 # imports from dptraining
@@ -60,7 +62,7 @@ from monai.networks.nets import(
     UNet
 )
 
-#opacus imports
+#imports from opacus
 from opacus import PrivacyEngine
 from opacus.utils.uniform_sampler import UniformWithReplacementSampler
 from opacus.data_loader import wrap_collate_with_empty
@@ -155,7 +157,7 @@ def main(config: Config):
     train_ds = Dataset(data=train_files, transform=transforms)
     train_dl = DataLoader(
         train_ds,
-        batch_size=4,
+        batch_size=10,
         shuffle=True,
         num_workers=2,
         collate_fn=list_data_collate,
@@ -175,7 +177,7 @@ def main(config: Config):
 
     # model = thebest.eini[i], i in dict
     private = False
-    architecture = 'pan'
+    architecture = 'linknet'
 
 
     if (architecture =='dynUnet'):
@@ -237,7 +239,7 @@ def main(config: Config):
         model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
 
-    elif (architecture=="linkNet"):
+    elif (architecture=="linknet"):
         #model_2d = smp.Linknet(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
         model = Linknet(in_channels=1, classes=3)
@@ -258,8 +260,9 @@ def main(config: Config):
         model = PAN(in_channels=1, classes=3)
 
     elif (architecture=="deep"):
-        model_2d = smp.DeepLabV3(in_channels=1, classes=3)
-        model = ACSConverter(model_2d)
+        #model_2d = smp.DeepLabV3(in_channels=1, classes=3)
+        #model = ACSConverter(model_2d)
+        model = DeepLabV3(in_channels=1, classes=3)
 
     elif (architecture=="deepPlus"):
         model_2d = smp.DeepLabV3Plus(in_channels=1, classes=3)
