@@ -77,7 +77,6 @@ class ResNetEncoder(nn.Module, EncoderMixin):
         out_channels = (1, 64, 64, 128, 256, 512)
         self._out_channels = out_channels[:depth+1]
         self._in_channels = in_channels
-        #self.output_stride = output_stride
         self.dilation = 1
         self.inplanes = 64
 

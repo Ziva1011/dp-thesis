@@ -235,7 +235,6 @@ class ResNet(nn.Module):
         dilate: bool = False,
     ) -> nn.Sequential:
         norm_layer = self._norm_layer
-        downsample = None
         previous_dilation = self.dilation
         if dilate:
             self.dilation *= stride
