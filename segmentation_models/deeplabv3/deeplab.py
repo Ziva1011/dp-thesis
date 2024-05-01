@@ -71,7 +71,8 @@ class DeepLabV3(SegmentationModel):
         self.encoder = ResNetEncoder(
             in_channels=in_channels,
             depth=encoder_depth,
-            output_stride=32
+            output_stride=8,
+            replace_stride_with_dilation = [False, True, True]
         )
 
         self.decoder = DeepLabV3Decoder(
@@ -160,7 +161,8 @@ class DeepLabV3Plus(SegmentationModel):
         self.encoder = ResNetEncoder(
             in_channels=in_channels,
             depth=encoder_depth,
-            output_stride=32
+            output_stride=32,
+            replace_stride_with_dilation = [False, False, True]
         )
 
         self.decoder = DeepLabV3PlusDecoder(
