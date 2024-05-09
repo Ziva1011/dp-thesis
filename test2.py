@@ -157,7 +157,7 @@ def main(config: Config):
     train_ds = Dataset(data=train_files, transform=transforms)
     train_dl = DataLoader(
         train_ds,
-        batch_size=10,
+        batch_size=4,
         shuffle=True,
         num_workers=2,
         collate_fn=list_data_collate,
@@ -176,11 +176,12 @@ def main(config: Config):
     # eini=[braco, pe, cabeça]
 
     # model = thebest.eini[i], i in dict
-    private = False
-    architecture = 'linknet'
+    private = True
+    architecture = 'unet'
 
 
     if (architecture =='dynUnet'):
+        learning_rate = 0.002
         model= DynUNet(
             spatial_dims=3, 
             in_channels=1, 
@@ -193,6 +194,7 @@ def main(config: Config):
             res_block=True)
     
     elif (architecture=='unet'):
+        learning_rate = 0.002
         model = Unet(
             in_channels=1,
             out_channels=3,
@@ -205,12 +207,14 @@ def main(config: Config):
         )
 
     elif (architecture=='attention'):
+        learning_rate = 0.002
         model = AttentionUnet(
             spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], 
         )
         model = validators.ModuleValidator.fix(model)
 
     elif (architecture=='vnet'):
+        learning_rate = 0.002
         model= VNet(
             spatial_dims=3, 
             in_channels=1, 
@@ -218,15 +222,18 @@ def main(config: Config):
         model = validators.ModuleValidator.fix(model)
     
     elif (architecture=='unetMonai'):
+        learning_rate = 0.002
         model= UNet(
             spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2] 
         )
     
 
     elif (architecture=="dints"):
+        learning_rate = 0.002
         model = DiNTS(dints_space=TopologyInstance(), in_channels=1, num_classes=3)
 
     elif (architecture=="resnet"):
+        learning_rate = 0.002
         class NewModel(torch.nn.Module):
             def __init__(self, model):
                 super().__init__()
@@ -236,12 +243,14 @@ def main(config: Config):
         model = NewModel(SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)) 
     
     elif (architecture=="unet++"):
+        learning_rate = 0.002
         model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
 
     elif (architecture=="linknet"):
         #model_2d = smp.Linknet(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
+        learning_rate = 0.0002
         model = Linknet(in_channels=1, classes=3)
 
     elif (architecture=="fpn"):
@@ -295,7 +304,7 @@ def main(config: Config):
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    optimizer = torch.optim.NAdam(model.parameters(), lr=0.002)
+    optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate)
 
     # f1 = F1Score(task="multiclass", num_classes=3)
 
@@ -309,7 +318,7 @@ def main(config: Config):
             optimizer=optimizer,
             data_loader=train_dl,
             target_epsilon=8,
-            target_delta=1e-3,
+            target_delta=1e-2,
             epochs=epochs,
             max_grad_norm=1,
             grad_sample_mode="functorch",
