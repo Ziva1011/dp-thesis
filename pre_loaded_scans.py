@@ -50,8 +50,8 @@ save_path_labels = Path("./data/liver_seg_labels")
 #     p for p in tumour_path.rglob("*.nii") if p.is_file() and not p.stem in ignore
 # ]
 
-images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
-segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
+images = sorted(glob.glob("/vol/aimspace/projects//MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
+segs = sorted(glob.glob("/vol/aimspace/projects//MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
 
 # %%
 transforms = Compose([

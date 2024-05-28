@@ -1,4 +1,4 @@
-name: torchsegmentation
+name: torchsegmentation2
 channels:
   - pytorch
   - nvidia
@@ -41,7 +41,7 @@ dependencies:
     - torchinfo
     - opacus
     - git+https://github.com/a1302z/ACSConv
-    - inplace-abn
+    #- inplace-abn==1.1.0
     - onnx
     - onnxscript
 

@@ -97,8 +97,8 @@ def main(config: Config):
     # # train_dl_torch = torch.from_numpy(train_dl)
     # print(type(train_dl))
     # x, y = next(iter(train_dl))
-    images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
-    segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
+    images = sorted(glob.glob("/vol/aimspace/projects//MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
+    segs = sorted(glob.glob("/vol/aimspace/projects/Task03_Liver/labelsTr/liver_*.nii.gz"))
 
     training_dataset = SegmentationDataSet(inputs=images,
                                        targets=segs,
