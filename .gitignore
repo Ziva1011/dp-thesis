@@ -11,5 +11,8 @@ Miniconda3-latest-Linux-x86_64.sh
 output.png
 /data
 /onnx   
+/slurm_out
 
+.vscode
 dptraining/datasets/nifti/__pycache__
+dptraining/__pycache__
