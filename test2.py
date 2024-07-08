@@ -35,7 +35,7 @@ from monai.data import (
     pad_list_data_collate,
     ArrayDataset,
 )
-from monai.losses import DiceLoss
+from monai.losses import DiceLoss, GeneralizedDiceLoss
 
 # from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
 from monai.transforms import (
@@ -99,18 +99,18 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 def main(config: Config):
     # print(config)
 
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="dpSegmentation",
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="dpSegmentation",
 
-    #     # track hyperparameters and run metadata
-    #     config={
-    #     "learning_rate": 0.01,
-    #     "architecture": "Unet",
-    #     "epochs": 100,
-    #     "loss": "Dice",
-    #     }
-    # )
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": 0.01,
+        "architecture": "Unet",
+        "epochs": 100,
+        "loss": "Dice",
+        }
+    )
 
     # Transforms
     transforms = Compose(
@@ -137,11 +137,11 @@ def main(config: Config):
 
     # images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
     # segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
-
-    train_files = glob.glob("./data/liver_seg/train/*.nii")
-    train_labels = glob.glob("./data/liver_seg_labels/train/*.nii")
-    val_files = glob.glob("./data/liver_seg/val/*.nii")
-    val_labels = glob.glob("./data/liver_seg_labels/val/*.nii")
+    
+    train_files = glob.glob("./data2/liver_seg/train/*.nii")
+    train_labels = glob.glob("./data2/liver_seg_labels/train/*.nii")
+    val_files = glob.glob("./data2/liver_seg/val/*.nii")
+    val_labels = glob.glob("./data2/liver_seg_labels/val/*.nii")
 
     # train_ds = ArrayDataset(train_files, transforms, train_labels, transforms)
     # train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, pin_memory='True')
@@ -169,19 +169,18 @@ def main(config: Config):
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
 
-    # import martim como thebest
-
-    # martim: braço cabeca PendingDeprecationWarning
-
-    # eini=[braco, pe, cabeça]
-
-    # model = thebest.eini[i], i in dict
-    private = True
+    # name_of_script = sys.argv[0]
+    # architecture = sys.argv[1]
+    # private = sys.argv[2]
+    private = False
+    #architecture = config.model.name
+    #print(architecture)
     architecture = 'unet'
+    print("ARCHITECTURE: {} {} \n".format(architecture, private) )
 
 
     if (architecture =='dynUnet'):
-        learning_rate = 0.002
+        learning_rate = 0.0002
         model= DynUNet(
             spatial_dims=3, 
             in_channels=1, 
@@ -201,15 +200,15 @@ def main(config: Config):
             n_blocks=4,
             start_filters=32,
             activation="mish",
-            normalization="instance",
+            normalization="batch",
             conv_mode="same",
             dim=3,
         )
 
     elif (architecture=='attention'):
-        learning_rate = 0.002
+        learning_rate = 0.0001
         model = AttentionUnet(
-            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], 
+            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], dropout= 0.2
         )
         model = validators.ModuleValidator.fix(model)
 
@@ -300,7 +299,8 @@ def main(config: Config):
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    criterion = DiceLoss(to_onehot_y=True, reduction="mean", sigmoid=True)
+    #criterion = DiceLoss(to_onehot_y=True, reduction="mean", sigmoid=True)
+    criterion = GeneralizedDiceLoss(include_background=False, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
@@ -309,7 +309,7 @@ def main(config: Config):
     # f1 = F1Score(task="multiclass", num_classes=3)
 
     trainSteps = len(train_ds)
-    epochs = 50
+    epochs = 100
 
     if (private):
         privacy_engine = PrivacyEngine(accountant="gdp")
