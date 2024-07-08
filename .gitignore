@@ -10,9 +10,11 @@ Miniconda3-latest-Linux-x86_64.sh
 /wandb
 output.png
 /data
+/data2
 /onnx   
 /slurm_out
 
 .vscode
 dptraining/datasets/nifti/__pycache__
 dptraining/__pycache__
+script.sbatch
