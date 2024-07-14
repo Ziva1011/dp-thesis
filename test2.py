@@ -50,6 +50,7 @@ from monai.transforms import (
     Resize,
     LoadImage,
     EnsureChannelFirst,
+    ScaleIntensityRanged,
 )
 from monai.utils import first
 from monai.networks.nets import(
@@ -113,19 +114,37 @@ def main(config: Config):
     )
 
     # Transforms
-    transforms = Compose(
+    train_transforms = Compose(
         [
             # LoadImage(image_only=True),
             # EnsureChannelFirst(),
             LoadImaged(keys=["img", "seg"]),
             EnsureChannelFirstd(keys=["img", "seg"]),
+            ScaleIntensityRanged(
+                keys=["img"],
+                a_min=-57,
+                a_max=164,
+                b_min=0.0,
+                b_max=1.0,
+                clip=True,
+            ),
             # #Resize(spatial_size=(128,128,50)),
             # #RandSpatialCrop((128, 128, 50), random_size=False),
-            RandFlipd(keys=["img", "seg"], prob=0.5, spatial_axis=1),
+            RandFlipd(keys=["img", "seg"], prob=0.1, spatial_axis=1),
             # RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
-            RandRotate90d(keys=["img", "seg"], prob=0.3, spatial_axes=(0, 1)),
+            RandRotate90d(keys=["img", "seg"], prob=0.1, spatial_axes=(0, 1)),
         ]
     )
+
+    val_transforms = Compose(
+    [
+        LoadImaged(keys=["img", "seg"]),
+        EnsureChannelFirstd(keys=["img", "seg"]),
+
+        ScaleIntensityRanged(keys=["img"], a_min=-57, a_max=164, b_min=0.0, b_max=1.0, clip=True),
+        #CropForegroundd(keys=["image", "label"], source_key="image"),
+    ]
+)
     # rand_rotate = RandRotate90(prob=1,spatial_axes=[2,3])
 
     # train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
@@ -154,7 +173,7 @@ def main(config: Config):
     ]
     val_files = [{"img": img, "seg": seg} for img, seg in zip(val_files, val_labels)]
 
-    train_ds = Dataset(data=train_files, transform=transforms)
+    train_ds = Dataset(data=train_files, transform=train_transforms)
     train_dl = DataLoader(
         train_ds,
         batch_size=4,
@@ -164,7 +183,7 @@ def main(config: Config):
         pin_memory=torch.cuda.is_available(),
     )
 
-    val_ds = Dataset(data=val_files, transform=transforms)
+    val_ds = Dataset(data=val_files, transform=val_transforms)
     val_dl = DataLoader(
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
@@ -175,7 +194,7 @@ def main(config: Config):
     private = False
     #architecture = config.model.name
     #print(architecture)
-    architecture = 'unet'
+    architecture = 'dints'
     print("ARCHITECTURE: {} {} \n".format(architecture, private) )
 
 
@@ -242,37 +261,42 @@ def main(config: Config):
         model = NewModel(SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)) 
     
     elif (architecture=="unet++"):
-        learning_rate = 0.002
+        learning_rate = 0.0002
         model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
 
     elif (architecture=="linknet"):
         #model_2d = smp.Linknet(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
-        learning_rate = 0.0002
+        learning_rate = 0.002
         model = Linknet(in_channels=1, classes=3)
 
     elif (architecture=="fpn"):
         #model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
         #model = ACSConverter(model_2d)
+        learning_rate = 0.002
         model = FPN(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="psp"):
+        learning_rate = 0.002
         #model_2d = smp.PSPNet(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
         model = PSPNet(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="pan"):
+        learning_rate = 0.002
         #model_2d = smp.PAN(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
         model = PAN(in_channels=1, classes=3)
 
     elif (architecture=="deep"):
+        learning_rate = 0.002
         #model_2d = smp.DeepLabV3(in_channels=1, classes=3)
         #model = ACSConverter(model_2d)
         model = DeepLabV3(in_channels=1, classes=3)
 
     elif (architecture=="deepPlus"):
+        learning_rate = 0.002
         model_2d = smp.DeepLabV3Plus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
 
@@ -300,7 +324,7 @@ def main(config: Config):
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
     #criterion = DiceLoss(to_onehot_y=True, reduction="mean", sigmoid=True)
-    criterion = GeneralizedDiceLoss(include_background=False, to_onehot_y=True, reduction="mean", sigmoid=True)
+    criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
