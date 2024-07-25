@@ -259,7 +259,7 @@ def main(config: Config):
                 self.model = model
             def forward(self, x):
                 return self.model(x)[0]
-        model = NewModel(SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)) 
+        model = SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)
     
     elif (architecture=="unet++"):
         learning_rate = 0.0002
