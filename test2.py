@@ -18,7 +18,7 @@ from segmentation_models.linknet.linknet import Linknet
 from segmentation_models.fpn.fpn import FPN
 from segmentation_models.psp.psp import PSPNet
 from segmentation_models.pan.pan import PAN
-from segmentation_models.deeplabv3.deeplab import DeepLabV3
+from segmentation_models.deeplabv3.deeplab import DeepLabV3, DeepLabV3Plus
 
 
 # imports from dptraining
@@ -60,7 +60,8 @@ from monai.networks.nets import(
     VNet,
     DiNTS,
     TopologyInstance,
-    UNet
+    UNet,
+    BasicUNetPlusPlus
 )
 
 #imports from opacus
@@ -100,18 +101,18 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 def main(config: Config):
     # print(config)
 
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="dpSegmentation",
+    # wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="dpSegmentation",
 
-        # track hyperparameters and run metadata
-        config={
-        "learning_rate": 0.01,
-        "architecture": "Unet",
-        "epochs": 100,
-        "loss": "Dice",
-        }
-    )
+    #     # track hyperparameters and run metadata
+    #     config={
+    #     "learning_rate": 0.01,
+    #     "architecture": "Unet",
+    #     "epochs": 100,
+    #     "loss": "Dice",
+    #     }
+    # )
 
     # Transforms
     train_transforms = Compose(
@@ -191,10 +192,10 @@ def main(config: Config):
     # name_of_script = sys.argv[0]
     # architecture = sys.argv[1]
     # private = sys.argv[2]
-    private = False
+    private = True
     #architecture = config.model.name
     #print(architecture)
-    architecture = 'dints'
+    architecture = 'dynUnet'
     print("ARCHITECTURE: {} {} \n".format(architecture, private) )
 
 
@@ -264,45 +265,39 @@ def main(config: Config):
         learning_rate = 0.0002
         model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
+    
+    elif (architecture=="unetpp"):
+        learning_rate = 0.0002
+        model = BasicUNetPlusPlus(spatial_dims=3, in_channels=1, out_channels=3)
+
 
     elif (architecture=="linknet"):
-        #model_2d = smp.Linknet(in_channels=1, classes=3)
-        #model = ACSConverter(model_2d)
         learning_rate = 0.002
         model = Linknet(in_channels=1, classes=3)
 
     elif (architecture=="fpn"):
-        #model_2d = smp.FPN(in_channels=1, classes=3, encoder_weights=None)
-        #model = ACSConverter(model_2d)
         learning_rate = 0.002
         model = FPN(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="psp"):
         learning_rate = 0.002
-        #model_2d = smp.PSPNet(in_channels=1, classes=3)
-        #model = ACSConverter(model_2d)
         model = PSPNet(in_channels=1, classes=3, encoder_weights=None)
 
     elif (architecture=="pan"):
         learning_rate = 0.002
-        #model_2d = smp.PAN(in_channels=1, classes=3)
-        #model = ACSConverter(model_2d)
         model = PAN(in_channels=1, classes=3)
 
     elif (architecture=="deep"):
         learning_rate = 0.002
-        #model_2d = smp.DeepLabV3(in_channels=1, classes=3)
-        #model = ACSConverter(model_2d)
         model = DeepLabV3(in_channels=1, classes=3)
 
     elif (architecture=="deepPlus"):
         learning_rate = 0.002
-        model_2d = smp.DeepLabV3Plus(in_channels=1, classes=3)
-        model = ACSConverter(model_2d)
+        model = DeepLabV3Plus(in_channels=1, classes=3)
 
     
-    # batch_size = 1
-    # summary(model, input_size=(batch_size, 1, 128, 128, 64))
+    batch_size = 4
+    summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -323,8 +318,8 @@ def main(config: Config):
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    #criterion = DiceLoss(to_onehot_y=True, reduction="mean", sigmoid=True)
-    criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
+    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,10,50])
+    #criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
@@ -431,22 +426,22 @@ def main(config: Config):
     #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
     # Second training loop
-    trainer = Trainer(
-        model=model,
-        device=device,
-        criterion=criterion,
-        optimizer=optimizer,
-        training_DataLoader=train_dl,
-        validation_DataLoader=val_dl,
-        lr_scheduler=None,
-        epochs=epochs,
-        epoch=0,
-        notebook=False,
-    )
+    # trainer = Trainer(
+    #     model=model,
+    #     device=device,
+    #     criterion=criterion,
+    #     optimizer=optimizer,
+    #     training_DataLoader=train_dl,
+    #     validation_DataLoader=val_dl,
+    #     lr_scheduler=None,
+    #     epochs=epochs,
+    #     epoch=0,
+    #     notebook=False,
+    # )
 
-    # start training
-    training_losses, validation_losses, lr_rates = trainer.run_trainer()
-    print(training_losses, validation_losses)
+    # # # start training
+    # training_losses, validation_losses, lr_rates = trainer.run_trainer()
+    # print(training_losses, validation_losses)
 
     ## Images Print
 
