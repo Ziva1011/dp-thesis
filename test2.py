@@ -2,6 +2,8 @@
 import hydra
 from pathlib import Path
 import glob
+import argparse
+import sys
 
 # imports from  pytorch
 import torch
@@ -35,7 +37,7 @@ from monai.data import (
     pad_list_data_collate,
     ArrayDataset,
 )
-from monai.losses import DiceLoss, GeneralizedDiceLoss
+from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss
 
 # from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
 from monai.transforms import (
@@ -69,6 +71,7 @@ from opacus import PrivacyEngine
 from opacus.utils.uniform_sampler import UniformWithReplacementSampler
 from opacus.data_loader import wrap_collate_with_empty
 from opacus import validators
+from opacus.validators import ModuleValidator
 
 import wandb
 from tqdm import tqdm, trange
@@ -100,7 +103,6 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 @hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
     # print(config)
-
     # wandb.init(
     #     # set the wandb project where this run will be logged
     #     project="dpSegmentation",
@@ -179,9 +181,10 @@ def main(config: Config):
         train_ds,
         batch_size=4,
         shuffle=True,
-        num_workers=2,
+        num_workers=32,
         collate_fn=list_data_collate,
-        pin_memory=torch.cuda.is_available(),
+        pin_memory=True,
+        prefetch_factor=2,
     )
 
     val_ds = Dataset(data=val_files, transform=val_transforms)
@@ -192,15 +195,19 @@ def main(config: Config):
     # name_of_script = sys.argv[0]
     # architecture = sys.argv[1]
     # private = sys.argv[2]
-    private = True
+    #parser = argparse.ArgumentParser(description='Optional app description')
+    #parser.add_argument('--architecture')
+    #args = parser.parse_args()
+
+    private = config.private
     #architecture = config.model.name
     #print(architecture)
-    architecture = 'dynUnet'
+    architecture = config.archi
     print("ARCHITECTURE: {} {} \n".format(architecture, private) )
 
 
     if (architecture =='dynUnet'):
-        learning_rate = 0.0002
+        learning_rate = 0.002
         model= DynUNet(
             spatial_dims=3, 
             in_channels=1, 
@@ -296,8 +303,8 @@ def main(config: Config):
         model = DeepLabV3Plus(in_channels=1, classes=3)
 
     
-    batch_size = 4
-    summary(model, input_size=(batch_size, 1, 128, 128, 64))
+    # batch_size = 4
+    # summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -314,11 +321,14 @@ def main(config: Config):
     model = model.to(device)
     model.train()
 
+    if not ModuleValidator.is_valid(model) and private:
+        model = ModuleValidator.fix(model)
     # criterion
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,10,50])
+    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,50,10000])
+    #criterion = DiceCELoss(to_onehot_y=True, softmax=True)
     #criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
@@ -330,7 +340,10 @@ def main(config: Config):
     trainSteps = len(train_ds)
     epochs = 100
 
+
+
     if (private):
+        
         privacy_engine = PrivacyEngine(accountant="gdp")
         model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
             module=model,
@@ -425,23 +438,23 @@ def main(config: Config):
 
     #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
-    # Second training loop
-    # trainer = Trainer(
-    #     model=model,
-    #     device=device,
-    #     criterion=criterion,
-    #     optimizer=optimizer,
-    #     training_DataLoader=train_dl,
-    #     validation_DataLoader=val_dl,
-    #     lr_scheduler=None,
-    #     epochs=epochs,
-    #     epoch=0,
-    #     notebook=False,
-    # )
+    #Second training loop
+    trainer = Trainer(
+        model=model,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        training_DataLoader=train_dl,
+        validation_DataLoader=val_dl,
+        lr_scheduler=None,
+        epochs=epochs,
+        epoch=0,
+        notebook=False,
+    )
 
-    # # # start training
-    # training_losses, validation_losses, lr_rates = trainer.run_trainer()
-    # print(training_losses, validation_losses)
+    # # start training
+    training_losses, validation_losses, lr_rates = trainer.run_trainer()
+    print(training_losses, validation_losses)
 
     ## Images Print
 
