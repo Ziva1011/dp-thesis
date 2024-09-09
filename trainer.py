@@ -94,6 +94,10 @@ class Trainer:
 
             out = self.model(input)  # one forward pass
 
+            if type(out) is tuple or type(out) is list:
+                out = torch.tensor(out[0])
+            
+ 
             loss = self.criterion(out, target)  # calculate loss
 
             loss_value = loss.item()

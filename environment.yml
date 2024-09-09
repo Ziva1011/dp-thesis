@@ -37,7 +37,8 @@ dependencies:
     - wandb
     - torchmetrics
     - monai
-    - jaxlib==0.4.27
+    - jax
+    - jaxlib
     - torchinfo
     - opacus
     - git+https://github.com/a1302z/ACSConv

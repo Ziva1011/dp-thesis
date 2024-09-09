@@ -10,6 +10,7 @@ import torch
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
 import segmentation_models_pytorch as smp
+import torch.nn.init as init
 
 # from segmentation_models_pytorch.losses import DiceLoss
 from torchmetrics.classification import MulticlassF1Score
@@ -99,6 +100,20 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 
     return collate
 
+def initialize_weights(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv3d) or isinstance(m, torch.nn.ConvTranspose3d):
+            init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                init.constant_(m.bias, 0)
+        elif isinstance(m, torch.nn.BatchNorm3d):
+            init.constant_(m.weight, 1)
+            init.constant_(m.bias, 0)
+        elif isinstance(m, torch.nn.Linear):
+            init.normal_(m.weight, 0, 0.01)
+            init.constant_(m.bias, 0)
+
+
 
 @hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
@@ -179,7 +194,7 @@ def main(config: Config):
     train_ds = Dataset(data=train_files, transform=train_transforms)
     train_dl = DataLoader(
         train_ds,
-        batch_size=4,
+        batch_size=1,
         shuffle=True,
         num_workers=32,
         collate_fn=list_data_collate,
@@ -237,15 +252,14 @@ def main(config: Config):
         model = AttentionUnet(
             spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], dropout= 0.2
         )
-        model = validators.ModuleValidator.fix(model)
 
     elif (architecture=='vnet'):
         learning_rate = 0.002
         model= VNet(
             spatial_dims=3, 
             in_channels=1, 
-            out_channels=3)
-        model = validators.ModuleValidator.fix(model)
+            out_channels=3, 
+            )
     
     elif (architecture=='unetMonai'):
         learning_rate = 0.002
@@ -318,12 +332,12 @@ def main(config: Config):
 
     # print(model.parameters)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(device)
+    initialize_weights(model)
     model = model.to(device)
     model.train()
 
-    if not ModuleValidator.is_valid(model) and private:
-        model = ModuleValidator.fix(model)
-    # criterion
+    # criteriona
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
@@ -332,8 +346,8 @@ def main(config: Config):
     #criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
-    # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    #optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate)
 
     # f1 = F1Score(task="multiclass", num_classes=3)
 
@@ -343,8 +357,12 @@ def main(config: Config):
 
 
     if (private):
-        
+        model = ModuleValidator.fix(model)
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+
         privacy_engine = PrivacyEngine(accountant="gdp")
+      
+        
         model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
             module=model,
             optimizer=optimizer,
@@ -352,8 +370,7 @@ def main(config: Config):
             target_epsilon=8,
             target_delta=1e-2,
             epochs=epochs,
-            max_grad_norm=1,
-            grad_sample_mode="functorch",
+            max_grad_norm=1
         )
         train_dl.collate_fn = wrap_collate_with_empty(
             collate_fn=list_data_collate,
