@@ -96,11 +96,11 @@ class Trainer:
 
             loss = self.criterion(out, target)  # calculate loss
 
-            loss_value = loss.item()
-            train_losses.append(loss_value)
             loss.backward()  # one backward pass
             self.optimizer.step()  # update the parameters
             self.optimizer.zero_grad()  # zerograd the parameters
+            loss_value = loss.detach().cpu().item()
+            train_losses.append(loss_value)
 
             target = target.squeeze(1).long()  # because multiclass receives size (N, ...)
             mcf1s = MulticlassF1Score(num_classes=3, average=None).to(self.device)

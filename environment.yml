@@ -6,7 +6,7 @@ channels:
 dependencies:
   - python==3.10
   - pytorch::pytorch-cuda
-  - pytorch::pytorch==2.0
+  - pytorch::pytorch>=2.0
   - pytorch::torchvision
   - nvidia::cudatoolkit
   - conda-forge::wandb
@@ -32,16 +32,16 @@ dependencies:
     - split-folders
     - pyyaml
     - deepee
-    - objax
+    # - objax
     - segmentation-models-pytorch
     - wandb
     - torchmetrics
     - monai
-    - jaxlib==0.4.27
+    # - jaxlib==0.4.27
     - torchinfo
     - opacus
     - git+https://github.com/a1302z/ACSConv
-    - inplace-abn==1.1.0
+    # - inplace-abn==1.1.0
     - onnx
     - onnxscript
 

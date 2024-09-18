@@ -18,3 +18,5 @@ output.png
 dptraining/datasets/nifti/__pycache__
 dptraining/__pycache__
 script.sbatch
+**/__pycache__/**
+**.pyc

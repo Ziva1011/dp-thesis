@@ -5,13 +5,13 @@ from omegaconf import OmegaConf
 from deepee.dataloader import UniformWORSubsampler
 
 from dptraining.config import Config, DatasetName, LoaderCollateFn, DatasetTask
-from dptraining.datasets.cifar10 import CIFAR10Creator
-from dptraining.datasets.imagenet import ImageNetCreator
-from dptraining.datasets.radimagenet import RadImageNetCreator
-from dptraining.datasets.fmri import FMRICreator
-from dptraining.datasets.tinyimagenet import TinyImageNetCreator
+# from dptraining.datasets.cifar10 import CIFAR10Creator
+# from dptraining.datasets.imagenet import ImageNetCreator
+# from dptraining.datasets.radimagenet import RadImageNetCreator
+# from dptraining.datasets.fmri import FMRICreator
+# from dptraining.datasets.tinyimagenet import TinyImageNetCreator
 from dptraining.datasets.nifti.creator import NiftiSegCreator
-from dptraining.datasets.ham10000 import HAM10000Creator
+# from dptraining.datasets.ham10000 import HAM10000Creator
 from dptraining.datasets.utils import (
     collate_np_classification,
     collate_np_reconstruction,
@@ -25,22 +25,22 @@ SUPPORTED_NORMALIZATION = (DatasetName.CIFAR10, DatasetName.tinyimagenet)
 
 def select_creator(config):
     match config.dataset.name:
-        case DatasetName.CIFAR10:
-            creator = CIFAR10Creator
-        case DatasetName.tinyimagenet:
-            creator = TinyImageNetCreator
-        case DatasetName.imagenet:
-            creator = ImageNetCreator
-        case DatasetName.fastmri:
-            creator = FMRICreator
-        case DatasetName.radimagenet:
-            creator = RadImageNetCreator
+        # case DatasetName.CIFAR10:
+        #     creator = CIFAR10Creator
+        # case DatasetName.tinyimagenet:
+        #     creator = TinyImageNetCreator
+        # case DatasetName.imagenet:
+        #     creator = ImageNetCreator
+        # case DatasetName.fastmri:
+        #     creator = FMRICreator
+        # case DatasetName.radimagenet:
+        #     creator = RadImageNetCreator
         case DatasetName.msd:
             creator = NiftiSegCreator
         case DatasetName.ukbb_seg:
             creator = NiftiSegCreator
-        case DatasetName.ham10000:
-            creator = HAM10000Creator
+        # case DatasetName.ham10000:
+        #     creator = HAM10000Creator
         case _ as unsupported:
             raise ValueError(f"Unsupported dataset '{unsupported}'.")
     return creator

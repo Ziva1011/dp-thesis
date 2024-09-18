@@ -2,18 +2,16 @@
 import hydra
 from pathlib import Path
 import glob
-import argparse
-import sys
 
 # imports from  pytorch
 import torch
-from torch.nn import BCEWithLogitsLoss
-from torch.optim import Adam
 import segmentation_models_pytorch as smp
 
 # from segmentation_models_pytorch.losses import DiceLoss
-from torchmetrics.classification import MulticlassF1Score
-from torchinfo import summary
+# from torchmetrics.classification import MulticlassF1Score
+# from torchinfo import summary
+from deepee import ModelSurgeon
+from kernel_norm import KernelNorm3d
 
 
 from segmentation_models.linknet.linknet import Linknet
@@ -26,7 +24,8 @@ from segmentation_models.deeplabv3.deeplab import DeepLabV3, DeepLabV3Plus
 # imports from dptraining
 from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
-from dptraining.datasets.nifti.creator import NiftiSegCreator
+
+# from dptraining.datasets.nifti.creator import NiftiSegCreator
 
 
 # imports from monai
@@ -34,10 +33,8 @@ from monai.data import (
     Dataset,
     DataLoader,
     list_data_collate,
-    pad_list_data_collate,
-    ArrayDataset,
 )
-from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss
+from monai.losses import DiceLoss
 
 # from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
 from monai.transforms import (
@@ -45,17 +42,13 @@ from monai.transforms import (
     Compose,
     LoadImaged,
     RandRotate90d,
-    RandAdjustContrast,
-    ScaleIntensity,
     EnsureChannelFirstd,
-    RandSpatialCrop,
-    Resize,
-    LoadImage,
-    EnsureChannelFirst,
     ScaleIntensityRanged,
+    Resized, 
+    RandSpatialCropd
 )
 from monai.utils import first
-from monai.networks.nets import(
+from monai.networks.nets import (
     DynUNet,
     SegResNetVAE,
     AttentionUnet,
@@ -63,18 +56,15 @@ from monai.networks.nets import(
     DiNTS,
     TopologyInstance,
     UNet,
-    BasicUNetPlusPlus
+    BasicUNetPlusPlus,
 )
 
-#imports from opacus
+# imports from opacus
 from opacus import PrivacyEngine
-from opacus.utils.uniform_sampler import UniformWithReplacementSampler
 from opacus.data_loader import wrap_collate_with_empty
 from opacus import validators
 from opacus.validators import ModuleValidator
 
-import wandb
-from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
 from acsconv.converters import ACSConverter
 
@@ -83,6 +73,7 @@ from trainer import Trainer
 
 load_config_store()
 print(Path.cwd())
+
 
 
 def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
@@ -131,8 +122,9 @@ def main(config: Config):
                 b_max=1.0,
                 clip=True,
             ),
-            # #Resize(spatial_size=(128,128,50)),
-            # #RandSpatialCrop((128, 128, 50), random_size=False),
+            # Resized(spatial_size=(128, 64, 64), keys=["img"]),
+            # Resized(spatial_size=(128, 64, 64), keys=["seg"], mode="nearest"),
+            # RandSpatialCropd(roi_size=(64, 64, 64), random_size=False, keys=["img", "seg"]),
             RandFlipd(keys=["img", "seg"], prob=0.1, spatial_axis=1),
             # RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
             RandRotate90d(keys=["img", "seg"], prob=0.1, spatial_axes=(0, 1)),
@@ -140,14 +132,17 @@ def main(config: Config):
     )
 
     val_transforms = Compose(
-    [
-        LoadImaged(keys=["img", "seg"]),
-        EnsureChannelFirstd(keys=["img", "seg"]),
-
-        ScaleIntensityRanged(keys=["img"], a_min=-57, a_max=164, b_min=0.0, b_max=1.0, clip=True),
-        #CropForegroundd(keys=["image", "label"], source_key="image"),
-    ]
-)
+        [
+            LoadImaged(keys=["img", "seg"]),
+            EnsureChannelFirstd(keys=["img", "seg"]),
+            # Resized(spatial_size=(128, 64, 64), keys=["img"]),
+            # Resized(spatial_size=(128, 64, 64), keys=["seg"], mode="nearest"),
+            ScaleIntensityRanged(
+                keys=["img"], a_min=-57, a_max=164, b_min=0.0, b_max=1.0, clip=True
+            ),
+            # CropForegroundd(keys=["image", "label"], source_key="image"),
+        ]
+    )
     # rand_rotate = RandRotate90(prob=1,spatial_axes=[2,3])
 
     # train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
@@ -159,7 +154,14 @@ def main(config: Config):
 
     # images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
     # segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
-    
+
+    # train_files = glob.glob("/media/alex/NVME/MSD/Task03_Liver/imagesTr/*.nii.gz")
+    # train_labels = glob.glob("/media/alex/NVME/MSD/Task03_Liver/labelsTr/*.nii.gz")
+    # val_files = glob.glob(
+    #     "/media/alex/NVME/MSD/Task03_Liver/imagesTr/*.nii.gz"
+    # )  # TODO change this
+    # val_labels = glob.glob("/media/alex/NVME/MSD/Task03_Liver/labelsTr/*.nii.gz")
+
     train_files = glob.glob("./data2/liver_seg/train/*.nii")
     train_labels = glob.glob("./data2/liver_seg_labels/train/*.nii")
     val_files = glob.glob("./data2/liver_seg/val/*.nii")
@@ -181,7 +183,7 @@ def main(config: Config):
         train_ds,
         batch_size=4,
         shuffle=True,
-        num_workers=32,
+        num_workers=4,
         collate_fn=list_data_collate,
         pin_memory=True,
         prefetch_factor=2,
@@ -195,31 +197,31 @@ def main(config: Config):
     # name_of_script = sys.argv[0]
     # architecture = sys.argv[1]
     # private = sys.argv[2]
-    #parser = argparse.ArgumentParser(description='Optional app description')
-    #parser.add_argument('--architecture')
-    #args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description='Optional app description')
+    # parser.add_argument('--architecture')
+    # args = parser.parse_args()
 
     private = config.private
-    #architecture = config.model.name
-    #print(architecture)
+    # architecture = config.model.name
+    # print(architecture)
     architecture = config.archi
-    print("ARCHITECTURE: {} {} \n".format(architecture, private) )
+    print("ARCHITECTURE: {} {} \n".format(architecture, private))
 
-
-    if (architecture =='dynUnet'):
+    if architecture == "dynUnet":
         learning_rate = 0.002
-        model= DynUNet(
-            spatial_dims=3, 
-            in_channels=1, 
-            out_channels=3, 
+        model = DynUNet(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=3,
             kernel_size=[3, 3, 3, 3, 3, 3],
             strides=[1, 2, 2, 2, 2, [2, 2, 1]],
             upsample_kernel_size=[2, 2, 2, 2, [2, 2, 1]],
             norm_name="instance",
             deep_supervision=False,
-            res_block=True)
-    
-    elif (architecture=='unet'):
+            res_block=True,
+        )
+
+    elif architecture == "unet":
         learning_rate = 0.002
         model = Unet(
             in_channels=1,
@@ -232,77 +234,85 @@ def main(config: Config):
             dim=3,
         )
 
-    elif (architecture=='attention'):
+    elif architecture == "attention":
         learning_rate = 0.0001
         model = AttentionUnet(
-            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2], dropout= 0.2
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=3,
+            channels=[64, 32, 16, 8, 4],
+            strides=[1, 2, 2, 2, 2],
+            dropout=0.2,
         )
-        model = validators.ModuleValidator.fix(model)
+        # model = validators.ModuleValidator.fix(model)
 
-    elif (architecture=='vnet'):
+    elif architecture == "vnet":
         learning_rate = 0.002
-        model= VNet(
-            spatial_dims=3, 
-            in_channels=1, 
-            out_channels=3)
-        model = validators.ModuleValidator.fix(model)
-    
-    elif (architecture=='unetMonai'):
+        model = VNet(spatial_dims=3, in_channels=1, out_channels=3)
+        # model = validators.ModuleValidator.fix(model)
+
+    elif architecture == "unetMonai":
         learning_rate = 0.002
-        model= UNet(
-            spatial_dims=3, in_channels=1, out_channels=3, channels=[64,32,16,8,4], strides= [1, 2, 2, 2, 2] 
+        model = UNet(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=3,
+            channels=[64, 32, 16, 8, 4],
+            strides=[1, 2, 2, 2, 2],
         )
-    
 
-    elif (architecture=="dints"):
+    elif architecture == "dints":
         learning_rate = 0.002
         model = DiNTS(dints_space=TopologyInstance(), in_channels=1, num_classes=3)
 
-    elif (architecture=="resnet"):
+    elif architecture == "resnet":
         learning_rate = 0.002
+
         class NewModel(torch.nn.Module):
             def __init__(self, model):
                 super().__init__()
                 self.model = model
+
             def forward(self, x):
                 return self.model(x)[0]
-        model = SegResNetVAE(input_image_size=(128,128,64), in_channels=1, out_channels=3)
-    
-    elif (architecture=="unet++"):
+
+        model = SegResNetVAE(
+            input_image_size=(128, 128, 64), in_channels=1, out_channels=3
+        )
+
+    elif architecture == "unet++":
         learning_rate = 0.0002
         model_2d = smp.UnetPlusPlus(in_channels=1, classes=3)
         model = ACSConverter(model_2d)
-    
-    elif (architecture=="unetpp"):
+
+    elif architecture == "unetpp":
         learning_rate = 0.0002
         model = BasicUNetPlusPlus(spatial_dims=3, in_channels=1, out_channels=3)
 
-
-    elif (architecture=="linknet"):
+    elif architecture == "linknet":
         learning_rate = 0.002
         model = Linknet(in_channels=1, classes=3)
 
-    elif (architecture=="fpn"):
+    elif architecture == "fpn":
         learning_rate = 0.002
         model = FPN(in_channels=1, classes=3, encoder_weights=None)
 
-    elif (architecture=="psp"):
+    elif architecture == "psp":
         learning_rate = 0.002
         model = PSPNet(in_channels=1, classes=3, encoder_weights=None)
 
-    elif (architecture=="pan"):
+    elif architecture == "pan":
         learning_rate = 0.002
         model = PAN(in_channels=1, classes=3)
 
-    elif (architecture=="deep"):
+    elif architecture == "deep":
         learning_rate = 0.002
         model = DeepLabV3(in_channels=1, classes=3)
 
-    elif (architecture=="deepPlus"):
+    elif architecture == "deepPlus":
         learning_rate = 0.002
         model = DeepLabV3Plus(in_channels=1, classes=3)
 
-    
     # batch_size = 4
     # summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
@@ -321,15 +331,23 @@ def main(config: Config):
     model = model.to(device)
     model.train()
 
-    if not ModuleValidator.is_valid(model) and private:
-        model = ModuleValidator.fix(model)
+    if private and not ModuleValidator.is_valid(model):
+        # model = ModuleValidator.fix(model,replace_bn_with_in=True)
+
+        def bn_to_kn(*_, **__):
+            return KernelNorm3d()
+
+        surgeon = ModelSurgeon(converter=bn_to_kn)
+        model = surgeon.operate(model)
     # criterion
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,50,10000])
-    #criterion = DiceCELoss(to_onehot_y=True, softmax=True)
-    #criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
+    criterion = DiceLoss(
+        to_onehot_y=True, reduction="mean", softmax=True, weight=[1, 50, 10000]
+    )
+    # criterion = DiceCELoss(to_onehot_y=True, softmax=True)
+    # criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
@@ -340,10 +358,10 @@ def main(config: Config):
     trainSteps = len(train_ds)
     epochs = 100
 
+    # print(summary(model, (1, 1, 64, 64, 64), depth=6))
 
+    if private:
 
-    if (private):
-        
         privacy_engine = PrivacyEngine(accountant="gdp")
         model, optimizer, train_dl = privacy_engine.make_private_with_epsilon(
             module=model,
@@ -357,7 +375,9 @@ def main(config: Config):
         )
         train_dl.collate_fn = wrap_collate_with_empty(
             collate_fn=list_data_collate,
-            sample_empty_shapes={x: train_dl.dataset[0][x].shape for x in ["img", "seg"]},
+            sample_empty_shapes={
+                x: train_dl.dataset[0][x].shape for x in ["img", "seg"]
+            },
             dtypes={x: train_dl.dataset[0][x].dtype for x in ["img", "seg"]},
         )
 
@@ -438,7 +458,7 @@ def main(config: Config):
 
     #     print("Train loss: {:.6f}".format(avgTrainLoss))
 
-    #Second training loop
+    # Second training loop
     trainer = Trainer(
         model=model,
         device=device,
@@ -458,11 +478,10 @@ def main(config: Config):
 
     ## Images Print
 
-    x= iter(val_dl)
+    x = iter(val_dl)
     dict = first(x)
-    
 
-    img =   dict["img"]
+    img = dict["img"]
     seg_gt = dict["seg"]
     # img= img.squeeze
     # img = rand_rotate(img)
@@ -490,6 +509,9 @@ def main(config: Config):
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
     plt.savefig("output.png")
     
+    
+    
+
     
 
 if __name__ == "__main__":
