@@ -133,10 +133,10 @@ class KernelNorm3d(torch.nn.Module):
                  eps: float = 1e-5):
         super(KernelNorm3d, self).__init__()
 
-        self.kernel_size = (kernel_size, kernel_size) if isinstance(kernel_size, int) else kernel_size
-        self.stride = (stride, stride) if isinstance(stride, int) else stride
-        self.padding = (padding, padding, padding, padding) if isinstance(padding, int) else padding
-        self.padding = self.padding if len(self.padding) == 4 else (self.padding[0], self.padding[0], self.padding[1], self.padding[1])
+        self.kernel_size = (kernel_size, kernel_size, kernel_size) if isinstance(kernel_size, int) else kernel_size
+        self.stride = (stride, stride, stride) if isinstance(stride, int) else stride
+        self.padding = (padding, padding, padding, padding, padding, padding) if isinstance(padding, int) else padding
+        self.padding = self.padding if len(self.padding) == 6 else (self.padding[0], self.padding[0], self.padding[1], self.padding[1], self.padding[2], self.padding[2])
         # self.dropout_p = dropout_p
         self.eps = eps
 
