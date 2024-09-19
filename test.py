@@ -37,12 +37,13 @@ from monai.transforms import (
     ToTensor,
     EnsureChannelFirst,
 )
+
 from monai.utils import first
-import SimpleITK as sitk
+#import SimpleITK as sitk
 
 import wandb
 
-from unet import UNet
+from unet import Unet
 from trainer import Trainer
 
 
@@ -97,18 +98,31 @@ def main(config: Config):
     # # train_dl_torch = torch.from_numpy(train_dl)
     # print(type(train_dl))
     # x, y = next(iter(train_dl))
-    images = sorted(glob.glob("/vol/aimspace/projects//MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
-    segs = sorted(glob.glob("/vol/aimspace/projects/Task03_Liver/labelsTr/liver_*.nii.gz"))
+    #images = sorted(glob.glob("/vol/aimspace/projects//MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
+    #segs = sorted(glob.glob("/vol/aimspace/projects/Task03_Liver/labelsTr/liver_*.nii.gz"))
 
-    training_dataset = SegmentationDataSet(inputs=images,
-                                       targets=segs,
-                                       transform=None)
+    train_file = glob.glob("./data/liver_seg/train/0.nii")
+    train_label = glob.glob("./data/liver_seg_labels/train/0.nii")
 
-    training_dataloader = data.DataLoader(dataset=training_dataset,
-                                        batch_size=2,
-                                        shuffle=True)
+    train_ds = Dataset(data=train_file, transform=transforms)
+    train_dl = DataLoader(
+        train_ds,
+        batch_size=4,
+        shuffle=True,
+        num_workers=2,
+        collate_fn=list_data_collate,
+        pin_memory=torch.cuda.is_available(),
+    )
+    print(train_file.shape())
+    #training_dataset = SegmentationDataSet(inputs=images,
+    #                                   targets=segs,
+    #                                   transform=None)
+
+    #training_dataloader = data.DataLoader(dataset=training_dataset,
+    #                                    batch_size=2,
+    #                                    shuffle=True)
     
-    x, y = next(iter(training_dataloader))
+    #x, y = next(iter(training_dataloader))
     # binary_loss = "DiceLoss"
     print("Hello")
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

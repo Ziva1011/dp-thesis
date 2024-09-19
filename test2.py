@@ -106,7 +106,7 @@ def initialize_weights(model):
             init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             if m.bias is not None:
                 init.constant_(m.bias, 0)
-        elif isinstance(m, torch.nn.BatchNorm3d):
+        elif isinstance(m, torch.nn.BatchNorm3d) or isinstance(m, torch.nn.GroupNorm):
             init.constant_(m.weight, 1)
             init.constant_(m.bias, 0)
         elif isinstance(m, torch.nn.Linear):
@@ -258,7 +258,7 @@ def main(config: Config):
         model= VNet(
             spatial_dims=3, 
             in_channels=1, 
-            out_channels=3, 
+            out_channels=3
             )
     
     elif (architecture=='unetMonai'):
@@ -332,7 +332,7 @@ def main(config: Config):
 
     # print(model.parameters)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    print(device)
+    torch.cuda.empty_cache()
     initialize_weights(model)
     model = model.to(device)
     model.train()
