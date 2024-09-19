@@ -22,10 +22,11 @@
 """
 
 import torch
-from torch.nn.common_types import _size_2_t, _size_4_t
+from torch.nn.common_types import _size_2_t, _size_4_t, _size_3_t
 from typing import Union
 from torch import Tensor
 from torch.nn import functional as F
+
 
 
 class KernelNorm1d(torch.nn.Module):
@@ -126,22 +127,24 @@ class KernelNorm2d(torch.nn.Module):
 
 class KernelNorm3d(torch.nn.Module):
     def __init__(self,
-                 kernel_size: Union[int, _size_2_t] = (1, 1, 1),
-                 stride: Union[int, _size_2_t] = (1, 1, 1),
-                 padding: Union[int, _size_2_t, _size_4_t] = (0, 0, 0),
-                #  dropout_p: float = 0.1,
-                 eps: float = 1e-5):
+                 kernel_size: Union[int, _size_3_t] = (1, 1, 1),
+                 stride: Union[int, _size_3_t] = (1, 1, 1),
+                 padding: Union[int, _size_3_t] = (0, 0, 0),
+                 dropout_p: float = 0.1,
+                 eps: float = 1e-5, 
+                 adaptive_pooling=True):
         super(KernelNorm3d, self).__init__()
 
         self.kernel_size = (kernel_size, kernel_size, kernel_size) if isinstance(kernel_size, int) else kernel_size
         self.stride = (stride, stride, stride) if isinstance(stride, int) else stride
         self.padding = (padding, padding, padding, padding, padding, padding) if isinstance(padding, int) else padding
         self.padding = self.padding if len(self.padding) == 6 else (self.padding[0], self.padding[0], self.padding[1], self.padding[1], self.padding[2], self.padding[2])
-        # self.dropout_p = dropout_p
+        self.pool = F.adaptive_avg_pool3d if adaptive_pooling else lambda *args: args[0]
         self.eps = eps
 
     def forward(self, input_t: Tensor) -> Tensor:
         # add padding
+        orig_shape = input_t.shape
         x_t = F.pad(input=input_t, pad=self.padding, mode="constant", value=0.0)
 
         # convert padded-input to sliced-input
@@ -149,7 +152,7 @@ class KernelNorm3d(torch.nn.Module):
         x_t = x_t.unfold(dimension=3, size=self.kernel_size[1], step=self.stride[1])
         x_t = x_t.unfold(dimension=4, size=self.kernel_size[2], step=self.stride[2])
 
-        x_t = x_t.permute(dims=(0, 2, 3, 4, 1, 5, 6, 7)) # (B, X, Y, Z, C, S, S, S)
+        x_t = x_t.permute(dims=(0, 2, 3, 4, 1, 5, 6, 7))
 
         # apply dropout with rate dropout_p, and then compute mean and var
         # d_x_t = F.dropout(input=x_t, p=self.dropout_p)
@@ -162,10 +165,11 @@ class KernelNorm3d(torch.nn.Module):
         # computed after applying dropout to the input
         x_t = (x_t - mu) / torch.sqrt(var + self.eps)
 
-        x_t = x_t.permute(dims=(0, 4, 1, 5, 2, 6, 3, 7)) # (B, C, X, SX, Y, SY, Z, SZ)
-        x_t = x_t.view(x_t.shape[0], x_t.shape[1], -1, x_t.shape[-4], x_t.shape[-3], x_t.shape[-2], x_t.shape[-1])
-        x_t = x_t.view(x_t.shape[0], x_t.shape[1], x_t.shape[2], -1, x_t.shape[-2], x_t.shape[-1])
+        x_t = x_t.permute(dims=(0, 4, 1, 5, 2, 6, 3, 7))
+        x_t = x_t.view(x_t.shape[0], x_t.shape[1], -1, x_t.shape[4], x_t.shape[5], x_t.shape[6], x_t.shape[7])
+        x_t = x_t.view(x_t.shape[0], x_t.shape[1], x_t.shape[2], -1, x_t.shape[5], x_t.shape[6])
         x_t = x_t.view(x_t.shape[0], x_t.shape[1], x_t.shape[2], x_t.shape[3], -1)
+        x_t = self.pool(x_t, orig_shape[2:])
 
         return x_t
 

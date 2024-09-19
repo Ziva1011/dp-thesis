@@ -331,14 +331,14 @@ def main(config: Config):
     model = model.to(device)
     model.train()
 
-    if private and not ModuleValidator.is_valid(model):
+    # if private and not ModuleValidator.is_valid(model):
         # model = ModuleValidator.fix(model,replace_bn_with_in=True)
 
-        def bn_to_kn(*_, **__):
-            return KernelNorm3d()
+    def bn_to_kn(*_, **__):
+        return KernelNorm3d(kernel_size=3, stride=3, padding=1)
 
-        surgeon = ModelSurgeon(converter=bn_to_kn)
-        model = surgeon.operate(model)
+    surgeon = ModelSurgeon(converter=bn_to_kn)
+    model = surgeon.operate(model)
     # criterion
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
