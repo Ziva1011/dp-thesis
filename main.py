@@ -25,8 +25,6 @@ from segmentation_models.deeplabv3.deeplab import DeepLabV3, DeepLabV3Plus
 from dptraining.config import Config
 from dptraining.config.config_store import load_config_store
 
-# from dptraining.datasets.nifti.creator import NiftiSegCreator
-
 
 # imports from monai
 from monai.data import (
@@ -34,9 +32,7 @@ from monai.data import (
     DataLoader,
     list_data_collate,
 )
-from monai.losses import DiceLoss
-
-# from monai.metrics import get_confusion_matrix, ConfusionMatrixMetric, compute_confusion_matrix_metric
+from monai.losses import DiceLoss, GeneralizedDiceLoss
 from monai.transforms import (
     RandFlipd,
     Compose,
@@ -143,35 +139,11 @@ def main(config: Config):
             # CropForegroundd(keys=["image", "label"], source_key="image"),
         ]
     )
-    # rand_rotate = RandRotate90(prob=1,spatial_axes=[2,3])
-
-    # train_ds, val_ds, test_ds = NiftiSegCreator.make_datasets(
-    #     config, (None, None, None)
-    # )
-    # train_dl, val_dl, test_dl = NiftiSegCreator.make_dataloader(
-    #     train_ds, val_ds, test_ds, {}, {}, {}
-    # )
-
-    # images = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/imagesTr/liver_*.nii.gz"))
-    # segs = sorted(glob.glob("/media/datasets/MSD/Task03_Liver/labelsTr/liver_*.nii.gz"))
-
-    # train_files = glob.glob("/media/alex/NVME/MSD/Task03_Liver/imagesTr/*.nii.gz")
-    # train_labels = glob.glob("/media/alex/NVME/MSD/Task03_Liver/labelsTr/*.nii.gz")
-    # val_files = glob.glob(
-    #     "/media/alex/NVME/MSD/Task03_Liver/imagesTr/*.nii.gz"
-    # )  # TODO change this
-    # val_labels = glob.glob("/media/alex/NVME/MSD/Task03_Liver/labelsTr/*.nii.gz")
-
+ 
     train_files = glob.glob("./data2/liver_seg/train/*.nii")
     train_labels = glob.glob("./data2/liver_seg_labels/train/*.nii")
     val_files = glob.glob("./data2/liver_seg/val/*.nii")
     val_labels = glob.glob("./data2/liver_seg_labels/val/*.nii")
-
-    # train_ds = ArrayDataset(train_files, transforms, train_labels, transforms)
-    # train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, pin_memory='True')
-
-    # val_ds = ArrayDataset(val_files, transforms, val_labels, transforms)
-    # val_dl = DataLoader(val_ds, batch_size=1, num_workers=2, pin_memory='True')
 
     train_files = [
         {"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)
@@ -194,16 +166,7 @@ def main(config: Config):
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
 
-    # name_of_script = sys.argv[0]
-    # architecture = sys.argv[1]
-    # private = sys.argv[2]
-    # parser = argparse.ArgumentParser(description='Optional app description')
-    # parser.add_argument('--architecture')
-    # args = parser.parse_args()
-
     private = config.private
-    # architecture = config.model.name
-    # print(architecture)
     architecture = config.archi
     print("ARCHITECTURE: {} {} \n".format(architecture, private))
 
@@ -244,12 +207,10 @@ def main(config: Config):
             strides=[1, 2, 2, 2, 2],
             dropout=0.2,
         )
-        # model = validators.ModuleValidator.fix(model)
 
     elif architecture == "vnet":
         learning_rate = 0.002
         model = VNet(spatial_dims=3, in_channels=1, out_channels=3)
-        # model = validators.ModuleValidator.fix(model)
 
     elif architecture == "unetMonai":
         learning_rate = 0.002
@@ -313,8 +274,6 @@ def main(config: Config):
         learning_rate = 0.002
         model = DeepLabV3Plus(in_channels=1, classes=3)
 
-    # batch_size = 4
-    # summary(model, input_size=(batch_size, 1, 128, 128, 64))
 
     # Testing model
     # x = torch.randn(size=(1, 1, 512, 512, 512), dtype=torch.float32)
@@ -322,43 +281,32 @@ def main(config: Config):
     #     out = model(x)
     # print(f'Out: {out.shape}')
 
-    # Option 1: criterion for loss and optimization
-    # lossFunc = BCEWithLogitsLoss()
-    # opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-
     # print(model.parameters)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     model.train()
-
-    # if private and not ModuleValidator.is_valid(model):
-        # model = ModuleValidator.fix(model,replace_bn_with_in=True)
 
     def bn_to_kn(*_, **__):
         return KernelNorm3d(kernel_size=3, stride=3, padding=1)
 
     surgeon = ModelSurgeon(converter=bn_to_kn)
     model = surgeon.operate(model)
-    # criterion
+
+    #criterion
     # criterion = torch.nn.CrossEntropyLoss()
-    # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
     criterion = DiceLoss(
         to_onehot_y=True, reduction="mean", softmax=True, weight=[1, 50, 10000]
     )
-    # criterion = DiceCELoss(to_onehot_y=True, softmax=True)
-    # criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
     # optimizer
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate)
 
-    # f1 = F1Score(task="multiclass", num_classes=3)
 
     trainSteps = len(train_ds)
     epochs = 100
 
-    # print(summary(model, (1, 1, 64, 64, 64), depth=6))
 
     if private:
 
@@ -381,84 +329,9 @@ def main(config: Config):
             dtypes={x: train_dl.dataset[0][x].dtype for x in ["img", "seg"]},
         )
 
-    ##First Training loop
     print("[INFO] training the network...")
-    # dict= first(train_dl)
-
-    # for e in trange(epochs):
-    #     # set the model in training mode
-    #     model.train()
-    #     # initialize the total training and validation loss
-    #     totalTrainLoss = 0
-    #     totalTestLoss = 0
-    #     f1=[0,0,0]
-
-    # loop over the training set
-    #     for i, dict in tqdm(enumerate(train_dl), total=len(train_dl), leave=False):
-    #     # send the input to the device
-    #         #x, y = first(train_dl)
-    #         x= dict["img"]
-    #         y= dict["seg"]
-
-    #         (x, y) = (x.to(device), y.to(device))
-    #         x = x.float()
-    #         #y = y.squeeze(0).long()
-
-    #         #has to be a long for the one hot encoding
-    #         y = y.long()
-
-    #         # perform a forward pass and calculate the training loss
-    #         pred = model(x)
-    #         # pred = torch.argmax(pred, dim=1, keepdim=True)
-
-    #         #one hot encode the label
-    #         z= torch.nn.functional.one_hot(y[0,0], num_classes=3)
-    #         z=torch.permute(z,(3,0,1,2))
-    #         z = z.view(1,3,128,128,100)
-
-    #         #calculate loss
-    #         loss = criterion(pred, y)
-
-    #         #metric = get_confusion_matrix(pred, z)
-    #         tp, fp, fn, tn = smp.metrics.get_stats(pred.long(), z, mode='multiclass', num_classes=3)
-    #         f1 = 2*tp/(2*tp+fp+fn)
-    #         # f1 = f1+smp.metrics.f1_score(tp, fp, fn, tn, reduction="none").cpu().numpy()
-
-    #         #F1 score for multiclass
-    #         # mcf1s = MulticlassF1Score(num_classes=3, average=None).to(device)
-    #         # f1= (f1+mcf1s(pred, z).cpu().numpy())
-    #         # metric = ConfusionMatrixMetric(include_background=True, metric_name="f1 score", compute_sample=False, reduction= "mean_channel", get_not_nans=False)
-    #         # #.numpy() to convert it to an array
-    #         # f1 = f1 + metric(pred,z).cpu().numpy()
-
-    #         #f1.append(mcf1s(pred, y))
-    #         #wandb.log({"f1_score": f1.data.item()})
-    #         #wandb.log({"f1_score": f1_score})
-
-    #         # first, zero out any previously accumulated gradients, then
-    #         # perform backpropagation, and then update model parameters
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-    #         # add the loss to the total training loss so far
-    #         totalTrainLoss += loss
-    #         # switch off autograd
-
-    #     avgTrainLoss = totalTrainLoss / trainSteps
-    #     # update our training history
-    #     f1 = f1/len(train_dl)
-    #     print(f1)
-    #     # print the model training and validation information
-    #     print("[INFO] EPOCH: {}/{}".format(e + 1, epochs))
-
-    # #     # wandb.log({"f1_background": f1[0]})
-    # #     # wandb.log({"f1_liver": f1[1]})
-    # #     # wandb.log({"f1_tumor": f1[2]})
-    # #     # wandb.log({"train_loss": avgTrainLoss.item()})
-
-    #     print("Train loss: {:.6f}".format(avgTrainLoss))
-
-    # Second training loop
+    
+    # Training loop
     trainer = Trainer(
         model=model,
         device=device,
@@ -476,8 +349,8 @@ def main(config: Config):
     training_losses, validation_losses, lr_rates = trainer.run_trainer()
     print(training_losses, validation_losses)
 
-    ## Images Print
 
+    ## Images Print
     x = iter(val_dl)
     dict = first(x)
 
