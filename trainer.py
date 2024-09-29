@@ -62,8 +62,8 @@ class Trainer:
                     )  # learning rate scheduler step with validation loss
                 else:
                     self.lr_scheduler.batch()  # learning rate scheduler step
-            # wandb.log({"lr": self.learning_rate[i], "train_loss": self.training_loss[i]})
-            # wandb.log({"val_loss": self.validation_loss[i]})
+            wandb.log({"lr": self.learning_rate[i], "train_loss": self.training_loss[i]})
+            wandb.log({"val_loss": self.validation_loss[i]})
         return self.training_loss, self.validation_loss, self.learning_rate
 
     # %%
@@ -94,6 +94,9 @@ class Trainer:
 
             out = self.model(input)  # one forward pass
 
+            if type(out) is tuple or type(out) is list:
+                out = torch.tensor(out[0])
+
             loss = self.criterion(out, target)  # calculate loss
 
             loss.backward()  # one backward pass
@@ -112,13 +115,13 @@ class Trainer:
 
         self.training_loss.append(np.mean(train_losses))
         print("Train loss: ", np.mean(train_losses))
-        # wandb.log({"train_loss": np.mean(train_losses)})
+        wandb.log({"train_loss": np.mean(train_losses)})
         self.learning_rate.append(self.optimizer.param_groups[0]["lr"])
         f1 = f1 / len(batch_iter)
         print(f1)
-        # wandb.log({"f1_background": f1[0]})
-        # wandb.log({"f1_liver": f1[1]})
-        # wandb.log({"f1_tumor": f1[2]})
+        wandb.log({"f1_background": f1[0]})
+        wandb.log({"f1_liver": f1[1]})
+        wandb.log({"f1_tumor": f1[2]})
 
         batch_iter.close()
 
@@ -148,6 +151,8 @@ class Trainer:
             with torch.inference_mode():
                 input = input.float()
                 out = self.model(input)
+                if type(out) is tuple or type(out) is list:
+                    out = torch.tensor(out[0])
                 loss = self.criterion(out, target)
                 loss_value = loss.item()
                 valid_losses.append(loss_value)
@@ -162,5 +167,5 @@ class Trainer:
         self.validation_loss.append(np.mean(valid_losses))
         f1 = f1 / len(batch_iter)
         print("Validation_f1:", f1)
-        # wandb.log({"val_loss": np.mean(valid_losses)})
+        wandb.log({"val_loss": np.mean(valid_losses)})
         batch_iter.close()

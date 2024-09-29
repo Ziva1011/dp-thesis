@@ -66,6 +66,9 @@ from acsconv.converters import ACSConverter
 
 from unet import Unet
 from trainer import Trainer
+from tester import Tester
+
+import wandb
 
 load_config_store()
 print(Path.cwd())
@@ -90,18 +93,18 @@ def wrap_collate_with_empty(*, collate_fn, sample_empty_shapes, dtypes):
 @hydra.main(version_base=None, config_path=Path.cwd() / "configs")
 def main(config: Config):
     # print(config)
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="dpSegmentation",
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="dpSegmentation",
 
-    #     # track hyperparameters and run metadata
-    #     config={
-    #     "learning_rate": 0.01,
-    #     "architecture": "Unet",
-    #     "epochs": 100,
-    #     "loss": "Dice",
-    #     }
-    # )
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": 0.01,
+        "architecture": "Unet",
+        "epochs": 100,
+        "loss": "Dice",
+        }
+    )
 
     # Transforms
     train_transforms = Compose(
@@ -120,7 +123,7 @@ def main(config: Config):
             ),
             # Resized(spatial_size=(128, 64, 64), keys=["img"]),
             # Resized(spatial_size=(128, 64, 64), keys=["seg"], mode="nearest"),
-            # RandSpatialCropd(roi_size=(64, 64, 64), random_size=False, keys=["img", "seg"]),
+           # RandSpatialCropd(roi_size=(64, 64, 64), random_size=False, keys=["img", "seg"]),
             RandFlipd(keys=["img", "seg"], prob=0.1, spatial_axis=1),
             # RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
             RandRotate90d(keys=["img", "seg"], prob=0.1, spatial_axes=(0, 1)),
@@ -142,13 +145,18 @@ def main(config: Config):
  
     train_files = glob.glob("./data2/liver_seg/train/*.nii")
     train_labels = glob.glob("./data2/liver_seg_labels/train/*.nii")
+
     val_files = glob.glob("./data2/liver_seg/val/*.nii")
     val_labels = glob.glob("./data2/liver_seg_labels/val/*.nii")
+
+    test_files = glob.glob("./data2/liver_seg/test/*.nii")
+    test_labels = glob.glob("./data2/liver_seg_labels/test/*.nii")
 
     train_files = [
         {"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)
     ]
     val_files = [{"img": img, "seg": seg} for img, seg in zip(val_files, val_labels)]
+    test_files = [{"img": img, "seg": seg} for img, seg in zip(test_files, test_labels)]
 
     train_ds = Dataset(data=train_files, transform=train_transforms)
     train_dl = DataLoader(
@@ -164,6 +172,11 @@ def main(config: Config):
     val_ds = Dataset(data=val_files, transform=val_transforms)
     val_dl = DataLoader(
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
+    )
+
+    test_ds = Dataset(data=test_files, transform=None)
+    test_dl = DataLoader(
+        test_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
 
     private = config.private
@@ -286,11 +299,11 @@ def main(config: Config):
     model = model.to(device)
     model.train()
 
-    def bn_to_kn(*_, **__):
-        return KernelNorm3d(kernel_size=3, stride=3, padding=1)
+    # def bn_to_kn(*_, **__):
+    #     return KernelNorm3d(kernel_size=3, stride=3, padding=1)
 
-    surgeon = ModelSurgeon(converter=bn_to_kn)
-    model = surgeon.operate(model)
+    # surgeon = ModelSurgeon(converter=bn_to_kn)
+    # model = surgeon.operate(model)
 
     #criterion
     # criterion = torch.nn.CrossEntropyLoss()
@@ -349,9 +362,26 @@ def main(config: Config):
     training_losses, validation_losses, lr_rates = trainer.run_trainer()
     print(training_losses, validation_losses)
 
+    
+    tester = Tester(
+        model=model,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        training_DataLoader=train_dl,
+        validation_DataLoader=test_dl,
+        lr_scheduler=None,
+        epochs=epochs,
+        epoch=0,
+        notebook=False,
+    )
 
+    # # start training
+    test_losses = trainer.run_trainer()
+    print(test_losses)
+    
     ## Images Print
-    x = iter(val_dl)
+    x = iter(test_dl)
     dict = first(x)
 
     img = dict["img"]
@@ -365,6 +395,9 @@ def main(config: Config):
     seg_gt = seg_gt.long()
 
     model.eval()
+
+
+
     seg_pred = model(img)
 
     slice_num = 50
@@ -380,7 +413,7 @@ def main(config: Config):
     axs[1].imshow(seg_gt[0, 0, :, :, slice_num], cmap="gray")
     axs[2].imshow(seg_pred[0, 0, :, :, slice_num], cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
-    plt.savefig("output.png")
+    plt.savefig(f"img_out/{architecture}.png")
     
     
     
