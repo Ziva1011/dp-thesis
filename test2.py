@@ -81,6 +81,7 @@ from acsconv.converters import ACSConverter
 
 from unet import Unet
 from trainer import Trainer
+from tester import Tester
 
 load_config_store()
 print(Path.cwd())
@@ -179,6 +180,8 @@ def main(config: Config):
     train_labels = glob.glob("./data2/liver_seg_labels/train/*.nii")
     val_files = glob.glob("./data2/liver_seg/val/*.nii")
     val_labels = glob.glob("./data2/liver_seg_labels/val/*.nii")
+    test_files = glob.glob("./data2/liver_seg/test/*.nii")
+    test_labels = glob.glob("./data2/liver_seg_labels/test/*.nii")
 
     # train_ds = ArrayDataset(train_files, transforms, train_labels, transforms)
     # train_dl = DataLoader(train_ds, batch_size=1, num_workers=2, pin_memory='True')
@@ -190,6 +193,7 @@ def main(config: Config):
         {"img": img, "seg": seg} for img, seg in zip(train_files, train_labels)
     ]
     val_files = [{"img": img, "seg": seg} for img, seg in zip(val_files, val_labels)]
+    test_files = [{"img": img, "seg": seg} for img, seg in zip(test_files, test_labels)]
 
     train_ds = Dataset(data=train_files, transform=train_transforms)
     train_dl = DataLoader(
@@ -206,6 +210,11 @@ def main(config: Config):
     val_dl = DataLoader(
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
+    test_ds = Dataset(data=test_files, transform=val_transforms)
+    test_dl = DataLoader(
+        test_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
+    )
+
 
     # name_of_script = sys.argv[0]
     # architecture = sys.argv[1]
@@ -473,9 +482,26 @@ def main(config: Config):
     training_losses, validation_losses, lr_rates = trainer.run_trainer()
     print(training_losses, validation_losses)
 
+    tester = Tester(
+        model=model,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        training_DataLoader=train_dl,
+        validation_DataLoader=test_dl,
+        lr_scheduler=None,
+        epochs=epochs,
+        epoch=0,
+        notebook=False,
+    )
+
+    # # start training
+    test_losses = trainer.run_trainer()
+    print(test_losses)
+
     ## Images Print
 
-    x= iter(val_dl)
+    x= iter(test_dl)
     dict = first(x)
     
 
