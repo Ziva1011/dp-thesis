@@ -13,8 +13,6 @@ class Tester:
         optimizer: torch.optim.Optimizer,
         validation_DataLoader: torch.utils.data.Dataset = None,
         lr_scheduler: torch.optim.lr_scheduler = None,
-        epochs: int = 100,
-        epoch: int = 0,
         notebook: bool = False,
     ):
         self.model = model
@@ -23,8 +21,6 @@ class Tester:
         self.lr_scheduler = lr_scheduler
         self.validation_DataLoader = validation_DataLoader
         self.device = device
-        self.epochs = epochs
-        self.epoch = epoch
         self.notebook = notebook
 
         self.test_loss = []
@@ -36,25 +32,20 @@ class Tester:
         else:
             from tqdm import tqdm, trange
 
-        progressbar = trange(self.epochs, desc="Progress")
-        for i in progressbar:
-            """Epoch counter"""
-            self.epoch += 1  # epoch counter
+        """Test block"""
+        self._test()
 
-            """Test block"""
-            self._test()
-
-            """Learning rate scheduler block"""
-            if self.lr_scheduler is not None:
-                if (
-                    self.validation_DataLoader is not None
-                    and self.lr_scheduler.__class__.__name__ == "ReduceLROnPlateau"
-                ):
-                    self.lr_scheduler.batch(
-                        self.test_loss[i]
-                    )  # learning rate scheduler step with validation loss
-                else:
-                    self.lr_scheduler.batch()  # learning rate scheduler step
+        """Learning rate scheduler block"""
+        if self.lr_scheduler is not None:
+            if (
+                self.validation_DataLoader is not None
+                and self.lr_scheduler.__class__.__name__ == "ReduceLROnPlateau"
+            ):
+                self.lr_scheduler.batch(
+                    self.test_loss[i]
+                )  # learning rate scheduler step with validation loss
+            else:
+                self.lr_scheduler.batch()  # learning rate scheduler step
 
         return self.test_loss
 

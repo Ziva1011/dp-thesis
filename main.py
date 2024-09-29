@@ -123,7 +123,7 @@ def main(config: Config):
             ),
             # Resized(spatial_size=(128, 64, 64), keys=["img"]),
             # Resized(spatial_size=(128, 64, 64), keys=["seg"], mode="nearest"),
-           # RandSpatialCropd(roi_size=(64, 64, 64), random_size=False, keys=["img", "seg"]),
+            RandSpatialCropd(roi_size=(64, 64, 64), random_size=False, keys=["img", "seg"]),
             RandFlipd(keys=["img", "seg"], prob=0.1, spatial_axis=1),
             # RandAdjustContrast(prob=0.5, gamma=[0.5,0.6]),
             RandRotate90d(keys=["img", "seg"], prob=0.1, spatial_axes=(0, 1)),
@@ -174,7 +174,7 @@ def main(config: Config):
         val_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
 
-    test_ds = Dataset(data=test_files, transform=None)
+    test_ds = Dataset(data=test_files, transform=val_transforms)
     test_dl = DataLoader(
         test_ds, batch_size=1, num_workers=4, collate_fn=list_data_collate
     )
@@ -299,11 +299,11 @@ def main(config: Config):
     model = model.to(device)
     model.train()
 
-    # def bn_to_kn(*_, **__):
-    #     return KernelNorm3d(kernel_size=3, stride=3, padding=1)
+    def bn_to_kn(*_, **__):
+        return KernelNorm3d(kernel_size=3, stride=3, padding=1)
 
-    # surgeon = ModelSurgeon(converter=bn_to_kn)
-    # model = surgeon.operate(model)
+    surgeon = ModelSurgeon(converter=bn_to_kn)
+    model = surgeon.operate(model)
 
     #criterion
     # criterion = torch.nn.CrossEntropyLoss()
@@ -344,7 +344,7 @@ def main(config: Config):
 
     print("[INFO] training the network...")
     
-    # Training loop
+    #Training loop
     trainer = Trainer(
         model=model,
         device=device,
@@ -368,16 +368,13 @@ def main(config: Config):
         device=device,
         criterion=criterion,
         optimizer=optimizer,
-        training_DataLoader=train_dl,
         validation_DataLoader=test_dl,
         lr_scheduler=None,
-        epochs=epochs,
-        epoch=0,
         notebook=False,
     )
 
     # # start training
-    test_losses = trainer.run_trainer()
+    test_losses = tester.run_trainer()
     print(test_losses)
     
     ## Images Print
@@ -413,7 +410,7 @@ def main(config: Config):
     axs[1].imshow(seg_gt[0, 0, :, :, slice_num], cmap="gray")
     axs[2].imshow(seg_pred[0, 0, :, :, slice_num], cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
-    plt.savefig(f"img_out/{architecture}.png")
+    plt.savefig(f"img_out/{architecture}_p.png")
     
     
     
