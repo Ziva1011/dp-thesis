@@ -350,7 +350,7 @@ def main(config: Config):
     # criterion = torch.nn.CrossEntropyLoss()
     # ßßmode = "multiclass"
     # criterion = DiceLoss(mode, classes=None, log_loss=False, from_logits=True, smooth=0.0, ignore_index=None, eps=1e-07)
-    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,50,10000])
+    criterion = DiceLoss(to_onehot_y=True, reduction="mean", softmax=True, weight=[1,50,1000])
     #criterion = DiceCELoss(to_onehot_y=True, softmax=True)
     #criterion = GeneralizedDiceLoss(include_background=True, to_onehot_y=True, reduction="mean", sigmoid=True)
 
@@ -487,16 +487,13 @@ def main(config: Config):
         device=device,
         criterion=criterion,
         optimizer=optimizer,
-        training_DataLoader=train_dl,
         validation_DataLoader=test_dl,
         lr_scheduler=None,
-        epochs=epochs,
-        epoch=0,
         notebook=False,
     )
 
     # # start training
-    test_losses = trainer.run_trainer()
+    test_losses = tester.run_trainer()
     print(test_losses)
 
     ## Images Print
@@ -531,7 +528,7 @@ def main(config: Config):
     axs[1].imshow(seg_gt[0, 0, :, :, slice_num], cmap="gray")
     axs[2].imshow(seg_pred[0, 0, :, :, slice_num], cmap="gray")
     # plt.imshow(seg_pred[0,1,:,:,30], alpha=0.4)
-    plt.savefig("output.png")
+    plt.savefig(f"img_out/{architecture}_test2.png")
     
     
 
