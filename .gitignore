@@ -13,6 +13,7 @@ output.png
 /data2
 /onnx   
 /slurm_out
+/img_out
 
 .vscode
 dptraining/datasets/nifti/__pycache__
